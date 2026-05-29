@@ -12,5 +12,6 @@
 - [ ] GitLab root password is changed after first login.
 - [ ] Personal access tokens have expiration dates.
 - [ ] Departing users are removed from GitLab/Verdaccio.
+- [ ] Self-hosted Bit service is private and reachable only from LAN/VPN.
+- [ ] Bit scopes/packages default to private.
 - [ ] Packages are checked before publish: no `src`, `test`, `*.map`, secrets, or internal docs unless intentionally private.
-

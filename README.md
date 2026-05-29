@@ -6,8 +6,8 @@ This project provisions:
 
 - GitLab CE for private Git repositories and GitLab Package Registry
 - Caddy as an internal HTTPS reverse proxy
-- Verdaccio as an optional private npm registry
-- A placeholder route for Bit service POC
+- Verdaccio as a fallback private npm registry
+- A placeholder route for the self-hosted Bit Cloud / Bit service
 
 ## Network Model
 
@@ -65,12 +65,12 @@ Change the root password immediately after first login.
 
 ## Bit Usage
 
-Recommended first phase:
+Target package distribution:
 
 1. Use GitLab for source control.
 2. Use local Bit CLI for `bit build`, `bit start`, and `bit tag`.
-3. Publish npm packages to GitLab Package Registry or Verdaccio.
-4. POC Bit self-hosted service only after the Git/npm flow is stable.
+3. Publish Bit components and generated npm packages to the self-hosted Bit Cloud / Bit service.
+4. Keep Verdaccio only as a fallback registry for local experiments or emergency package hosting.
 
 ## Docs
 

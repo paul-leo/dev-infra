@@ -18,6 +18,5 @@ https://{$NPM_HOST} {
 
 https://{$BIT_HOST} {
   tls /etc/caddy/certs/internal.local.crt /etc/caddy/certs/internal.local.key
-  respond "Bit service placeholder. Use local Bit CLI first; add self-hosted Bit service after POC." 200
+  respond "Self-hosted Bit Cloud / Bit service placeholder. Wire the internal Bit service here after POC." 200
 }
-

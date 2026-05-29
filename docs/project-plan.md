@@ -7,7 +7,7 @@ This project defines a private, company-computer-hosted development infrastructu
 The goal is to provide a controlled local/LAN environment for:
 
 - private Git hosting
-- private package/component distribution
+- private Bit component and npm package distribution
 - Bit-based build and preview workflows
 - internal-only experimentation with SDK, bot, MCP, and OpenClaw integration packages
 
@@ -23,7 +23,7 @@ Allowed:
 - using internal DNS names that resolve only inside the LAN/VPN
 - storing internal project source code and private packages inside the internal environment
 - using local Bit CLI workflows for build, tag, preview, and package generation
-- publishing packages only to private internal registries
+- publishing packages only to the self-hosted Bit Cloud / Bit service or approved internal fallback registries
 
 Not allowed:
 
@@ -40,7 +40,7 @@ If a portable personal learning artifact is needed, it should be a separate clea
 ### Functional Requirements
 
 - Provide private Git hosting for internal project repositories.
-- Provide private npm/package hosting for generated packages.
+- Provide private Bit component hosting and npm package distribution for generated packages.
 - Support local Bit workflows:
   - `bit build`
   - `bit start`
@@ -73,11 +73,11 @@ If a portable personal learning artifact is needed, it should be a separate clea
 
 ## Technical Plan
 
-### Phase 1: Private Git and Package Baseline
+### Phase 1: Private Git Baseline
 
 Use:
 
-- GitLab CE for source control and GitLab Package Registry
+- GitLab CE for source control
 - Caddy as the internal HTTPS reverse proxy
 - Internal DNS for service names
 
@@ -89,25 +89,32 @@ npm.internal.local
 bit.internal.local
 ```
 
-For the first phase, Bit remains primarily a local CLI workflow. Package distribution can use GitLab Package Registry or Verdaccio.
+For the first phase, Bit remains primarily a local CLI workflow while the self-hosted Bit service is evaluated.
 
-### Phase 2: Private npm Registry
+### Phase 2: Self-Hosted Bit Cloud / Bit Service
 
-Add Verdaccio if GitLab Package Registry is not ergonomic enough for local package workflows.
+Use the self-hosted Bit service as the primary component and package distribution channel.
 
-Use Verdaccio for:
+Target responsibilities:
 
-- scoped internal packages
-- quick local publish/install tests
-- isolated package experiments
+- private Bit scopes
+- component browsing and discovery
+- generated npm package distribution
+- authenticated internal installs
+- package access control
+- package metadata and version discovery
 
-Keep GitLab as the canonical source repository.
+GitLab remains the canonical source repository. Bit is the package/component distribution layer.
 
-### Phase 3: Bit Service POC
+### Phase 3: Fallback npm Registry
 
-Evaluate whether a self-hosted Bit service is necessary.
+Keep Verdaccio as a fallback for local package experiments or emergency internal package hosting.
 
-Before adopting it, confirm:
+Do not treat Verdaccio as the primary registry if the self-hosted Bit service is stable.
+
+### Phase 4: Bit Service Hardening
+
+Before adopting the self-hosted Bit service for broader internal use, confirm:
 
 - private scope behavior
 - package registry integration
@@ -115,9 +122,9 @@ Before adopting it, confirm:
 - user and permission model
 - whether package contents expose source files, tests, or sourcemaps
 
-Do not make Bit service the source of truth until the GitLab/npm flow is stable.
+Do not make the Bit service broadly available until access control, backup, restore, and package contents are verified.
 
-### Phase 4: Package Hardening
+### Phase 5: Package Hardening
 
 Before broader internal installation, harden package output:
 
@@ -137,8 +144,8 @@ Recommended DNS model:
 
 ```text
 gitlab.internal.local -> company computer LAN IP
-npm.internal.local    -> company computer LAN IP
 bit.internal.local    -> company computer LAN IP
+npm.internal.local    -> company computer LAN IP (fallback only)
 ```
 
 These records should be internal-only.
@@ -164,4 +171,3 @@ If the maintainer leaves or the machine is retired:
 - do not export internal project code or package artifacts to personal systems
 
 Portable learning should be maintained in a separate clean-room repository.
-
