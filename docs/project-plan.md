@@ -20,10 +20,10 @@ The infrastructure is designed for company-device and company-network use.
 Allowed:
 
 - hosting private repositories on a company computer or approved company LAN host
-- using internal DNS names that resolve only inside the LAN/VPN
+- using direct LAN IP access when DNS is not configured yet
 - storing internal project source code and private packages inside the internal environment
 - using local Bit CLI workflows for build, tag, preview, and package generation
-- publishing packages only to the self-hosted Bit Cloud / Bit service or approved internal fallback registries
+- publishing packages through Bit Cloud and the self-hosted Bit scope server only
 
 Not allowed:
 
@@ -46,7 +46,7 @@ If a portable personal learning artifact is needed, it should be a separate clea
   - `bit start`
   - `bit tag`
   - package generation and private publishing
-- Support internal HTTPS access for `.dev` hostnames.
+- Support internal HTTPS access via LAN IP and fixed service ports.
 - Support backup and restore procedures.
 - Support health checks for the core services.
 - Keep configuration in Git while excluding runtime data and secrets.
@@ -78,22 +78,22 @@ If a portable personal learning artifact is needed, it should be a separate clea
 Use:
 
 - GitLab CE for source control
-- Caddy as the internal HTTPS reverse proxy
+- Caddy as the internal HTTP reverse proxy
 - Internal DNS for service names
 
 Initial hostnames:
 
 ```text
-gitlab.internal.local
-npm.internal.local
-bit.internal.local
+https://gitlab.internal.local
+https://bit.internal.local
+https://npm.internal.local
 ```
 
 For the first phase, Bit remains primarily a local CLI workflow while the self-hosted Bit service is evaluated.
 
-### Phase 2: Self-Hosted Bit Cloud / Bit Service
+### Phase 2: Bit Cloud Package Distribution
 
-Use the self-hosted Bit service as the primary component and package distribution channel.
+Use Bit Cloud as the primary npm/package distribution target.
 
 Target responsibilities:
 
@@ -104,20 +104,24 @@ Target responsibilities:
 - package access control
 - package metadata and version discovery
 
-GitLab remains the canonical source repository. Bit is the package/component distribution layer.
+GitLab remains the canonical source repository. Bit Cloud is the package/component distribution layer.
 
-### Phase 3: Fallback npm Registry
+### Phase 3: Self-Hosted Bit Scope Server
 
-Keep Verdaccio as a fallback for local package experiments or emergency internal package hosting.
+Use the self-hosted Bit scope server for internal component hosting and scope management.
 
-Do not treat Verdaccio as the primary registry if the self-hosted Bit service is stable.
+Before broader use, confirm:
+
+- private scope behavior
+- backup model
+- user and permission model
+- how component metadata maps to Bit Cloud package installs
 
 ### Phase 4: Bit Service Hardening
 
 Before adopting the self-hosted Bit service for broader internal use, confirm:
 
 - private scope behavior
-- package registry integration
 - backup model
 - user and permission model
 - whether package contents expose source files, tests, or sourcemaps
@@ -138,24 +142,19 @@ Before broader internal installation, harden package output:
 
 Sensitive logic should be moved to an internal service if it cannot be safely distributed to installed clients.
 
-## DNS and TLS Strategy
+## Access Strategy
 
-Recommended DNS model:
+Recommended LAN access model:
 
 ```text
-gitlab.internal.local -> company computer LAN IP
-bit.internal.local    -> company computer LAN IP
-npm.internal.local    -> company computer LAN IP (fallback only)
+https://gitlab.internal.local -> GitLab
+https://bit.internal.local -> Bit scope server
+https://npm.internal.local -> Bit Cloud registry proxy
 ```
 
-These records should be internal-only.
+When DNS is configured later, you may map those ports through internal-only hostnames.
 
-Because `.dev` requires HTTPS, use one of:
-
-- internal CA certificates trusted by company devices
-- DNS-01 issued wildcard certificates
-
-Do not use HTTP-01 challenges, because they require public inbound access.
+If a public or externally reachable entry point is added later, place HTTPS there and keep LAN access separate.
 
 ## Exit and Handover Policy
 

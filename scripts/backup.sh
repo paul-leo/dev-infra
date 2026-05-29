@@ -10,13 +10,11 @@ mkdir -p "$BACKUP_DIR"
 echo "[backup] creating GitLab application backup"
 docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T gitlab gitlab-backup create
 
-echo "[backup] archiving config and registry data"
-tar -C "$ROOT_DIR" -czf "$BACKUP_DIR/config-and-verdaccio.tgz" \
+echo "[backup] archiving config and bit data"
+tar -C "$ROOT_DIR" -czf "$BACKUP_DIR/config-and-bit.tgz" \
   .env \
   caddy \
-  verdaccio \
   data/gitlab/config \
-  data/verdaccio
+  data/bit
 
 echo "[backup] done: $BACKUP_DIR"
-

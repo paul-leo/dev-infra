@@ -9,10 +9,9 @@ GitLab restore outline:
 2. Copy the GitLab backup tar into data/gitlab/data/backups.
 3. Run:
    docker compose exec gitlab gitlab-backup restore BACKUP=<timestamp>
-4. Restore config from backups/<stamp>/config-and-verdaccio.tgz.
+4. Restore config from backups/<stamp>/config-and-bit.tgz.
 5. Restart:
    docker compose restart
 
 Always test restore on a disposable machine before trusting backups.
 EOF
-

@@ -12,9 +12,8 @@ docker compose ps
 echo "[health] GitLab"
 curl -k -I "https://${GITLAB_HOST}" | sed -n '1,8p'
 
-echo "[health] Verdaccio"
-curl -k -I "https://${NPM_HOST}" | sed -n '1,8p'
-
-echo "[health] Bit placeholder"
+echo "[health] Bit scope server"
 curl -k -I "https://${BIT_HOST}" | sed -n '1,8p'
 
+echo "[health] Bit Cloud registry proxy"
+curl -k -I "https://${NPM_HOST}" | sed -n '1,8p'

@@ -12,7 +12,7 @@ docker compose up -d
 ```bash
 docker compose logs -f caddy
 docker compose logs -f gitlab
-docker compose logs -f verdaccio
+docker compose logs -f bit
 ```
 
 ## Health Check
@@ -23,15 +23,15 @@ docker compose logs -f verdaccio
 
 ## Bit Service
 
-The Bit service is intentionally a placeholder in the first scaffold.
+The self-hosted Bit scope server is available on `https://bit.internal.local`.
 
-Before wiring it behind `bit.internal.local`, define:
+The Bit Cloud registry proxy is available on `https://npm.internal.local`.
 
-- service image or deployment method
+Before broad internal use, verify:
+
+- scope creation flow
 - persistent data directories
 - backup and restore process
-- private scope creation
-- package registry URL
 - authentication model
 - package content hardening checklist
 

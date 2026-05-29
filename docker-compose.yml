@@ -6,16 +6,14 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - "${HOST_IP}:80:80"
-      - "${HOST_IP}:443:443"
+      - "${HOST_IP:-127.0.0.1}:80:80"
+      - "${HOST_IP:-127.0.0.1}:443:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/certs:/etc/caddy/certs:ro
       - ./data/caddy/data:/data
       - ./data/caddy/config:/config
     depends_on:
       - gitlab
-      - verdaccio
 
   gitlab:
     image: gitlab/gitlab-ce:17.11.1-ce.0
@@ -24,12 +22,12 @@ services:
     env_file: .env
     shm_size: "256m"
     ports:
-      - "${HOST_IP}:${GITLAB_SSH_PORT}:22"
+      - "${HOST_IP}:${GITLAB_SSH_PORT:-9006}:22"
     environment:
       GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD}"
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'https://${GITLAB_HOST}'
-        gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT}
+        gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT:-9006}
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
         letsencrypt['enable'] = false
@@ -44,12 +42,14 @@ services:
       - ./data/gitlab/logs:/var/log/gitlab
       - ./data/gitlab/data:/var/opt/gitlab
 
-  verdaccio:
-    image: verdaccio/verdaccio:5
+  bit:
+    image: bitcli/bit-server:latest
+    platform: linux/amd64
     restart: unless-stopped
     env_file: .env
+    working_dir: /root/remote-scope
+    command: ["/bin/sh", "/scripts/start-bit-scope.sh"]
     volumes:
-      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
-      - ./data/verdaccio/storage:/verdaccio/storage
-      - ./data/verdaccio/plugins:/verdaccio/plugins
-
+      - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
+      - ./data/bit/scope:/root/remote-scope
+      - ./data/bit/logs:/root/Library/Caches/Bit/logs

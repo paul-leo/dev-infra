@@ -5,13 +5,14 @@
 - [ ] Firewall allows only trusted LAN/VPN ranges.
 - [ ] GitLab public signup is disabled.
 - [ ] GitLab projects default to private.
-- [ ] Verdaccio requires authentication.
 - [ ] No real tokens are committed.
 - [ ] Backups stay on approved company storage.
 - [ ] DNS API tokens and TLS private keys are not committed.
 - [ ] GitLab root password is changed after first login.
 - [ ] Personal access tokens have expiration dates.
-- [ ] Departing users are removed from GitLab/Verdaccio.
+- [ ] Departing users are removed from GitLab and Bit.
+- [ ] Bit Cloud access tokens are scoped and rotated.
 - [ ] Self-hosted Bit service is private and reachable only from LAN/VPN.
 - [ ] Bit scopes/packages default to private.
 - [ ] Packages are checked before publish: no `src`, `test`, `*.map`, secrets, or internal docs unless intentionally private.
+- [ ] Caddy listens on 80/443 for the official hostnames.
