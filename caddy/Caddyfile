@@ -1,0 +1,23 @@
+{
+  # For .dev domains HTTPS is mandatory in browsers.
+  # This default expects internal certificates mounted at:
+  #   ./caddy/certs/internal.local.crt
+  #   ./caddy/certs/internal.local.key
+  auto_https off
+}
+
+https://{$GITLAB_HOST} {
+  tls /etc/caddy/certs/internal.local.crt /etc/caddy/certs/internal.local.key
+  reverse_proxy gitlab:80
+}
+
+https://{$NPM_HOST} {
+  tls /etc/caddy/certs/internal.local.crt /etc/caddy/certs/internal.local.key
+  reverse_proxy verdaccio:4873
+}
+
+https://{$BIT_HOST} {
+  tls /etc/caddy/certs/internal.local.crt /etc/caddy/certs/internal.local.key
+  respond "Bit service placeholder. Use local Bit CLI first; add self-hosted Bit service after POC." 200
+}
+
