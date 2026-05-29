@@ -3,7 +3,7 @@ set -eu
 
 cd /root/remote-scope
 
-if [ ! -f .bitmap ]; then
+if [ ! -f scope.json ]; then
   echo "[bit] initializing bare scope"
   bit init --bare
 fi

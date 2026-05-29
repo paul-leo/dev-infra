@@ -43,7 +43,7 @@ services:
       - ./data/gitlab/data:/var/opt/gitlab
 
   bit:
-    image: bitcli/bit-server:latest
+    image: bitcli/bit-server:1.13.58-node-22.22.0
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
