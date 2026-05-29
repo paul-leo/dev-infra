@@ -74,8 +74,8 @@ Recommended first phase:
 
 ## Docs
 
+- [Project plan](docs/project-plan.md)
 - [DNS](docs/dns.md)
 - [TLS](docs/ssl.md)
 - [Operations](docs/operations.md)
 - [Security checklist](docs/security-checklist.md)
-
