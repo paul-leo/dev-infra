@@ -22,18 +22,17 @@ if [ -f .env ]; then
   set -a; . ./.env; set +a
 fi
 
-GITLAB_URL="${GITLAB_EXTERNAL_URL:-http://localhost:8080}"
-
+# Use internal Docker network hostname so runner can reach GitLab from within its container.
+# --clone-url overrides the repo clone URL for pipeline jobs (also uses internal network).
 docker compose exec gitlab-runner gitlab-runner register \
   --non-interactive \
-  --url "$GITLAB_URL" \
+  --url http://gitlab \
   --token "$TOKEN" \
   --executor docker \
   --docker-image alpine:latest \
   --docker-volumes /var/run/docker.sock:/var/run/docker.sock \
-  --description "local-docker-runner" \
-  --run-untagged true \
-  --locked false
+  --clone-url http://gitlab \
+  --description "local-docker-runner"
 
 echo ""
 echo "Runner registered. Config saved to data/gitlab-runner/config/config.toml"
