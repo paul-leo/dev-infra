@@ -1,34 +1,19 @@
-{
-  local_certs
-}
-
-http://gitlab.internal.local {
-  reverse_proxy gitlab:80
-}
-
-gitlab.internal.local {
-  tls internal
-  reverse_proxy gitlab:80
-}
-
-http://bit.internal.local {
-  reverse_proxy bit:3000
-}
-
-bit.internal.local {
-  tls internal
-  reverse_proxy bit:3000
-}
-
-http://npm.internal.local {
-  reverse_proxy {$BIT_REGISTRY_UPSTREAM} {
-    header_up Host node-registry.bit.cloud
-  }
-}
-
-npm.internal.local {
-  tls internal
-  reverse_proxy {$BIT_REGISTRY_UPSTREAM} {
-    header_up Host node-registry.bit.cloud
-  }
-}
+# Caddy is NOT used in the default HTTP-only setup.
+# Kept here for reference if you later need HTTPS / reverse proxy.
+#
+# To re-enable: add the caddy service back to docker-compose.yml and
+# replace these commented blocks with your actual config.
+#
+# {
+#   local_certs
+# }
+#
+# gitlab.example.com {
+#   tls internal
+#   reverse_proxy gitlab:80
+# }
+#
+# bit.example.com {
+#   tls internal
+#   reverse_proxy bit:3000
+# }

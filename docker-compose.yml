@@ -1,33 +1,20 @@
-name: dev-infra
+name: ${COMPOSE_PROJECT_NAME:-dev-infra}
 
 services:
-  caddy:
-    image: caddy:2.8
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "${HOST_IP:-127.0.0.1}:80:80"
-      - "${HOST_IP:-127.0.0.1}:443:443"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./data/caddy/data:/data
-      - ./data/caddy/config:/config
-    depends_on:
-      - gitlab
-
   gitlab:
-    image: gitlab/gitlab-ce:17.11.1-ce.0
+    image: ${GITLAB_IMAGE:-gitlab/gitlab-ce:17.11.1-ce.0}
     restart: unless-stopped
-    hostname: "${GITLAB_HOST}"
+    hostname: "${GITLAB_HOSTNAME:-localhost}"
     env_file: .env
     shm_size: "256m"
     ports:
-      - "${HOST_IP}:${GITLAB_SSH_PORT:-9006}:22"
+      - "${HOST_IP:-127.0.0.1}:${GITLAB_PORT:-8080}:80"
+      - "${HOST_IP:-127.0.0.1}:${GITLAB_SSH_PORT:-9022}:22"
     environment:
       GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD}"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'https://${GITLAB_HOST}'
-        gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT:-9006}
+        external_url '${GITLAB_EXTERNAL_URL:-http://localhost:8080}'
+        gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT:-9022}
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
         letsencrypt['enable'] = false
@@ -42,14 +29,28 @@ services:
       - ./data/gitlab/logs:/var/log/gitlab
       - ./data/gitlab/data:/var/opt/gitlab
 
+  gitlab-runner:
+    image: ${GITLAB_RUNNER_IMAGE:-gitlab/gitlab-runner:v17.11.1}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data/gitlab-runner/config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - gitlab
+
   bit:
-    image: bitcli/bit-server:1.13.58-node-22.22.0
+    image: ${BIT_IMAGE:-bitcli/bit-server:1.13.58-node-22.22.0}
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
-    working_dir: /root/remote-scope
+    working_dir: /root/${BIT_SCOPE_NAME:-internal-project}
     command: ["/bin/sh", "/scripts/start-bit-scope.sh"]
+    environment:
+      BIT_SCOPE_NAME: "${BIT_SCOPE_NAME:-internal-project}"
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${BIT_PORT:-3000}:3000"
     volumes:
       - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
-      - ./data/bit/scope:/root/remote-scope
+      - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-internal-project}
       - ./data/bit/logs:/root/Library/Caches/Bit/logs

@@ -1,10 +1,13 @@
 #!/usr/bin/env sh
 set -eu
 
-cd /root/remote-scope
+SCOPE_NAME="${BIT_SCOPE_NAME:-internal-project}"
+SCOPE_DIR="/root/${SCOPE_NAME}"
+
+cd "$SCOPE_DIR"
 
 if [ ! -f scope.json ]; then
-  echo "[bit] initializing bare scope"
+  echo "[bit] initializing bare scope: ${SCOPE_NAME}"
   bit init --bare
 fi
 
