@@ -39,6 +39,15 @@ services:
     depends_on:
       - gitlab
 
+  verdaccio:
+    image: verdaccio/verdaccio:5
+    restart: unless-stopped
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${VERDACCIO_PORT:-4873}:4873"
+    volumes:
+      - ./data/verdaccio/storage:/verdaccio/storage
+      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+
   bit:
     image: ${BIT_IMAGE:-bitcli/bit-server:1.13.58-node-22.22.0}
     platform: linux/amd64

@@ -1,0 +1,29 @@
+storage: /verdaccio/storage
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: -1   # 禁止自助注册，账号由管理员通过 htpasswd 工具创建
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    timeout: 30s
+
+packages:
+  # @dev-infra/* 私有包：仅认证用户可访问和发布
+  "@dev-infra/*":
+    access: $authenticated
+    publish: $authenticated
+    storage: "@dev-infra"
+
+  # 其他公共包：匿名可读，认证后可发布，走 npmjs 代理
+  "**":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+log: { type: stdout, format: pretty, level: warn }
+web:
+  enable: true
+  title: dev-infra npm registry
+listen: "0.0.0.0:4873"
