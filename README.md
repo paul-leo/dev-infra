@@ -21,24 +21,41 @@ cd dev-infra
 cp .env.example .env
 # Edit .env — at minimum change GITLAB_ROOT_PASSWORD
 
-# 3. Start
+# 3. Start all services
 docker compose up -d
+
+# Or start only what you need:
+docker compose up -d                          # core only (verdaccio + harness)
+docker compose --profile gitlab up -d         # + GitLab + Runner
+docker compose --profile bit up -d            # + Bit scope server
+docker compose --profile all up -d            # everything
+```
+
+Or set `COMPOSE_PROFILES` in `.env` to control which services start by default:
+
+```env
+# Only core + gitlab (no bit)
+COMPOSE_PROFILES=gitlab
+
+# Everything
+COMPOSE_PROFILES=all
 ```
 
 GitLab takes 3–5 minutes to initialize on first boot.
 
 ## Services
 
-| Service | Default Port | Default URL | Notes |
-|---------|-------------|-------------|-------|
-| GitLab | 9080 | http://localhost:9080 | Login: `root` / your password |
-| GitLab SSH | 9022 | ssh://localhost:9022 | Add your SSH key in GitLab first |
-| Bit Server | 9030 | http://localhost:9030 | Scope: `dev-infra` |
-| Verdaccio | 9040 | http://localhost:9040 | npm registry with web UI |
-| Harness-FE | 9050 | http://localhost:9050 | MCP gateway for AI agents |
-| Harness WS | 9051 | ws://localhost:9051 | WebSocket for browser/server runtimes |
+| Service | Port | URL | Profile |
+|---------|------|-----|---------|
+| Verdaccio | 9040 | http://localhost:9040 | *(core, always on)* |
+| Harness-FE | 9050 | http://localhost:9050 | *(core, always on)* |
+| Harness WS | 9051 | ws://localhost:9051 | *(core, always on)* |
+| GitLab | 9080 | http://localhost:9080 | `gitlab` |
+| GitLab SSH | 9022 | ssh://localhost:9022 | `gitlab` |
+| GitLab Runner | — | — | `gitlab` |
+| Bit Server | 9030 | http://localhost:9030 | `bit` |
 
-Port scheme: all services start from `90xx` for easy memorization and to avoid conflicts with common dev ports (3000, 4873, 8080).
+**Core 服务**（verdaccio + harness）始终启动，其他通过 profile 按需开启。
 
 ## Configuration
 

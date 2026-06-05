@@ -1,12 +1,59 @@
 name: ${COMPOSE_PROJECT_NAME:-dev-infra}
 
+# ─── Profiles ────────────────────────────────────────────────────────────────
+# Services are grouped by profiles for selective startup:
+#
+#   docker compose up -d                          → core only (verdaccio + harness)
+#   docker compose --profile gitlab up -d         → + GitLab + Runner
+#   docker compose --profile bit up -d            → + Bit scope server
+#   docker compose --profile all up -d            → everything
+#
+# Or set COMPOSE_PROFILES in .env:
+#   COMPOSE_PROFILES=gitlab,bit
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+  # ─── Core Services (always start) ───────────────────────────────────────────
+
+  verdaccio:
+    image: verdaccio/verdaccio:5
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${VERDACCIO_PORT:-9040}:4873"
+    environment:
+      VERDACCIO_PORT: "4873"
+    volumes:
+      - ./data/verdaccio/storage:/verdaccio/storage
+      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+
+  harness:
+    image: ${HARNESS_IMAGE:-node:20-alpine}
+    restart: unless-stopped
+    env_file: .env
+    working_dir: /app
+    command: ["npx", "-y", "@harness-fe/cli", "serve", "--host", "0.0.0.0", "--port", "9050", "--ws-port", "9051"]
+    environment:
+      NODE_ENV: development
+      HARNESS_MODE: "${HARNESS_MODE:-solo}"
+      HARNESS_PROJECT_ID: "${HARNESS_PROJECT_ID:-dev-infra}"
+      HARNESS_AUTH_TOKEN: "${HARNESS_AUTH_TOKEN:-}"
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${HARNESS_PORT:-9050}:9050"
+      - "${HOST_IP:-127.0.0.1}:${HARNESS_WS_PORT:-9051}:9051"
+    volumes:
+      - ./data/harness:/app/data
+
+  # ─── GitLab (profile: gitlab, all) ─────────────────────────────────────────
+
   gitlab:
     image: ${GITLAB_IMAGE:-gitlab/gitlab-ce:17.11.1-ce.0}
     restart: unless-stopped
     hostname: "${GITLAB_HOSTNAME:-localhost}"
     env_file: .env
     shm_size: "256m"
+    profiles: ["gitlab", "all"]
     ports:
       - "${HOST_IP:-127.0.0.1}:${GITLAB_PORT:-9080}:80"
       - "${HOST_IP:-127.0.0.1}:${GITLAB_SSH_PORT:-9022}:22"
@@ -33,29 +80,21 @@ services:
     image: ${GITLAB_RUNNER_IMAGE:-gitlab/gitlab-runner:v17.11.1}
     restart: unless-stopped
     env_file: .env
+    profiles: ["gitlab", "all"]
     volumes:
       - ./data/gitlab-runner/config:/etc/gitlab-runner
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - gitlab
 
-  verdaccio:
-    image: verdaccio/verdaccio:5
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "${HOST_IP:-127.0.0.1}:${VERDACCIO_PORT:-9040}:4873"
-    environment:
-      VERDACCIO_PORT: "4873"
-    volumes:
-      - ./data/verdaccio/storage:/verdaccio/storage
-      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+  # ─── Bit Scope Server (profile: bit, all) ──────────────────────────────────
 
   bit:
     image: ${BIT_IMAGE:-bitcli/bit-server:1.13.58-node-22.22.0}
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
+    profiles: ["bit", "all"]
     working_dir: /root/${BIT_SCOPE_NAME:-dev-infra}
     command: ["/bin/sh", "/scripts/start-bit-scope.sh"]
     environment:
@@ -66,20 +105,3 @@ services:
       - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
       - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-dev-infra}
       - ./data/bit/logs:/root/Library/Caches/Bit/logs
-
-  harness:
-    image: ${HARNESS_IMAGE:-node:20-alpine}
-    restart: unless-stopped
-    env_file: .env
-    working_dir: /app
-    command: ["npx", "-y", "@harness-fe/cli", "serve", "--host", "0.0.0.0", "--port", "9050", "--ws-port", "9051"]
-    environment:
-      NODE_ENV: development
-      HARNESS_MODE: "${HARNESS_MODE:-solo}"
-      HARNESS_PROJECT_ID: "${HARNESS_PROJECT_ID:-dev-infra}"
-      HARNESS_AUTH_TOKEN: "${HARNESS_AUTH_TOKEN:-}"
-    ports:
-      - "${HOST_IP:-127.0.0.1}:${HARNESS_PORT:-9050}:9050"
-      - "${HOST_IP:-127.0.0.1}:${HARNESS_WS_PORT:-9051}:9051"
-    volumes:
-      - ./data/harness:/app/data
