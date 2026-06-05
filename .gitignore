@@ -2,6 +2,11 @@
 data/
 backups/
 certs/*.pem
+certs/*.crt
+certs/*.key
+certs/*.srl
+certs/*.cnf
+certs/*.csr
 *.log
 .DS_Store
 .git.bak*/

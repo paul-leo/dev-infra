@@ -1,6 +1,13 @@
-# Place your custom TLS certificates here:
-#   cert.pem  — certificate (or fullchain)
-#   key.pem   — private key
+# TLS Certificate Directory
 #
-# These are only needed if you set CUSTOM_CERT_PATH / CUSTOM_KEY_PATH in .env.
-# Caddy handles TLS automatically for most cases (self-signed or Let's Encrypt).
+# Generate certificates automatically:
+#   ./scripts/gen-certs.sh [domain]
+#
+# Generated files:
+#   ca.crt          — Root CA certificate (distribute to clients)
+#   ca.key          — Root CA private key (keep secret!)
+#   cert.pem        — Server certificate
+#   key.pem         — Server private key
+#   fullchain.pem   — Server cert + CA chain (use this for Caddy)
+#
+# All .pem and .crt/.key files are gitignored.

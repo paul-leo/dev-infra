@@ -1,48 +1,55 @@
 # ─── Dev-Infra Caddy Reverse Proxy ───────────────────────────────────────────
 #
-# Domains are configured via environment variables:
+# Domains configured via environment variables (set in .env):
 #   GITLAB_DOMAIN, BIT_DOMAIN, NPM_DOMAIN, HARNESS_DOMAIN
 #
-# TLS is handled automatically by Caddy:
-#   - Real domains → auto ACME (Let's Encrypt)
-#   - .local / .internal / IP → auto self-signed ("internal")
-#   - Set ACME_EMAIL for production Let's Encrypt
+# TLS strategy:
+#   1. Custom certs at /certs/cert.pem + /certs/key.pem → uses those
+#   2. Public domain → Caddy auto-provisions Let's Encrypt
+#   3. .local / .internal / IP → Caddy uses internal self-signed CA
+#
+# Generate custom certs: ./scripts/gen-certs.sh
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Global options
 {
-	# Email for ACME (Let's Encrypt) registration
 	email {$ACME_EMAIL:}
+}
 
-	# Use internal CA for *.local / *.internal / IP addresses
-	# Caddy auto-detects this for non-public domains
+# ─── TLS snippet: use custom certs if present, else auto ─────────────────────
+(custom-tls) {
+	tls /certs/cert.pem /certs/key.pem
 }
 
 # ─── GitLab ──────────────────────────────────────────────────────────────────
 {$GITLAB_DOMAIN:gitlab.localhost} {
+	import custom-tls
 	reverse_proxy gitlab:80
 }
 
 # ─── Bit Scope Server ────────────────────────────────────────────────────────
 {$BIT_DOMAIN:bit.localhost} {
+	import custom-tls
 	reverse_proxy bit:3000
 }
 
 # ─── Verdaccio (npm registry) ────────────────────────────────────────────────
 {$NPM_DOMAIN:npm.localhost} {
+	import custom-tls
 	reverse_proxy verdaccio:4873
 }
 
 # ─── Harness-FE Gateway ─────────────────────────────────────────────────────
 {$HARNESS_DOMAIN:harness.localhost} {
-	# WebSocket upgrade for runtime connections
+	import custom-tls
+
+	# WebSocket upgrade for browser/server runtime connections
 	@websocket {
 		header Connection *Upgrade*
 		header Upgrade    websocket
 	}
 	reverse_proxy @websocket harness:9051
 
-	# All other traffic → HTTP MCP endpoint
+	# HTTP MCP traffic
 	reverse_proxy harness:9050
 }

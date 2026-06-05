@@ -102,6 +102,28 @@ BASE_DOMAIN=dev.local
 COMPOSE_PROFILES=all
 ```
 
+Generate internal Root CA + certificates:
+
+```bash
+./scripts/gen-certs.sh
+# Generates: certs/ca.crt, certs/cert.pem, certs/key.pem, certs/fullchain.pem
+```
+
+Trust the CA on client machines:
+
+```bash
+# macOS
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain ./certs/ca.crt
+
+# Linux
+sudo cp ./certs/ca.crt /usr/local/share/ca-certificates/dev-infra.crt
+sudo update-ca-certificates
+
+# Windows (PowerShell as admin)
+Import-Certificate -FilePath .\certs\ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+```
+
 Add to `/etc/hosts` on each client machine:
 
 ```
@@ -204,6 +226,7 @@ bit export
 ```bash
 ./scripts/healthcheck.sh        # Check all services
 ./scripts/backup.sh             # Backup data
+./scripts/gen-certs.sh          # Generate Root CA + TLS certificates
 docker compose logs -f <svc>    # Stream logs
 docker compose restart <svc>    # Restart one service
 docker compose down             # Stop everything
@@ -232,6 +255,7 @@ docker compose down             # Stop everything
 ├── scripts/
 │   ├── healthcheck.sh
 │   ├── backup.sh
+│   ├── gen-certs.sh              # Generate Root CA + server certs
 │   ├── register-runner.sh
 │   └── start-bit-scope.sh
 ├── data/                     # Runtime data (gitignored)
