@@ -53,13 +53,13 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
-    working_dir: /root/${BIT_SCOPE_NAME:-internal-project}
+    working_dir: /root/${BIT_SCOPE_NAME:-dev-infra}
     command: ["/bin/sh", "/scripts/start-bit-scope.sh"]
     environment:
-      BIT_SCOPE_NAME: "${BIT_SCOPE_NAME:-internal-project}"
+      BIT_SCOPE_NAME: "${BIT_SCOPE_NAME:-dev-infra}"
     ports:
       - "${HOST_IP:-127.0.0.1}:${BIT_PORT:-3000}:3000"
     volumes:
       - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
-      - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-internal-project}
+      - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-dev-infra}
       - ./data/bit/logs:/root/Library/Caches/Bit/logs

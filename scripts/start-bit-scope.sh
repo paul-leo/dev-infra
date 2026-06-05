@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-SCOPE_NAME="${BIT_SCOPE_NAME:-internal-project}"
+SCOPE_NAME="${BIT_SCOPE_NAME:-dev-infra}"
 SCOPE_DIR="/root/${SCOPE_NAME}"
 
 cd "$SCOPE_DIR"

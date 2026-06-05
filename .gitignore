@@ -3,4 +3,10 @@ data/
 backups/
 *.log
 .DS_Store
+.git.bak*/
+.claude/
+
+caddy/root-ca.crt
+caddy/certs/*
+!caddy/certs/.gitkeep
 
