@@ -1,7 +1,9 @@
 .env
 data/
 backups/
+certs/
 *.log
 .DS_Store
 .git.bak*/
 .claude/
+docker-compose.override.yml

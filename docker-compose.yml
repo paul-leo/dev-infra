@@ -8,12 +8,12 @@ services:
     env_file: .env
     shm_size: "256m"
     ports:
-      - "${HOST_IP:-127.0.0.1}:${GITLAB_PORT:-8080}:80"
+      - "${HOST_IP:-127.0.0.1}:${GITLAB_PORT:-9080}:80"
       - "${HOST_IP:-127.0.0.1}:${GITLAB_SSH_PORT:-9022}:22"
     environment:
       GITLAB_ROOT_PASSWORD: "${GITLAB_ROOT_PASSWORD}"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url '${GITLAB_EXTERNAL_URL:-http://localhost:8080}'
+        external_url '${GITLAB_EXTERNAL_URL:-http://localhost:9080}'
         gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT:-9022}
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
@@ -42,8 +42,11 @@ services:
   verdaccio:
     image: verdaccio/verdaccio:5
     restart: unless-stopped
+    env_file: .env
     ports:
-      - "${HOST_IP:-127.0.0.1}:${VERDACCIO_PORT:-4873}:4873"
+      - "${HOST_IP:-127.0.0.1}:${VERDACCIO_PORT:-9040}:4873"
+    environment:
+      VERDACCIO_PORT: "4873"
     volumes:
       - ./data/verdaccio/storage:/verdaccio/storage
       - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
@@ -58,8 +61,25 @@ services:
     environment:
       BIT_SCOPE_NAME: "${BIT_SCOPE_NAME:-dev-infra}"
     ports:
-      - "${HOST_IP:-127.0.0.1}:${BIT_PORT:-3000}:3000"
+      - "${HOST_IP:-127.0.0.1}:${BIT_PORT:-9030}:3000"
     volumes:
       - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
       - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-dev-infra}
       - ./data/bit/logs:/root/Library/Caches/Bit/logs
+
+  harness:
+    image: ${HARNESS_IMAGE:-node:20-alpine}
+    restart: unless-stopped
+    env_file: .env
+    working_dir: /app
+    command: ["npx", "-y", "@harness-fe/cli", "serve", "--host", "0.0.0.0", "--port", "9050", "--ws-port", "9051"]
+    environment:
+      NODE_ENV: development
+      HARNESS_MODE: "${HARNESS_MODE:-solo}"
+      HARNESS_PROJECT_ID: "${HARNESS_PROJECT_ID:-dev-infra}"
+      HARNESS_AUTH_TOKEN: "${HARNESS_AUTH_TOKEN:-}"
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${HARNESS_PORT:-9050}:9050"
+      - "${HOST_IP:-127.0.0.1}:${HARNESS_WS_PORT:-9051}:9051"
+    volumes:
+      - ./data/harness:/app/data

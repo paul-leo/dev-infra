@@ -1,20 +1,45 @@
-# Example Caddy reverse proxy configuration.
-# Not used by default — the stack runs plain HTTP on direct ports.
+# Caddy reverse proxy configuration for dev-infra services.
 #
-# To use: add a caddy service to docker-compose.yml, or run Caddy
-# on the host and point it at the exposed service ports.
+# Usage:
+#   1. Set ENABLE_HTTPS=true in .env
+#   2. Uncomment the caddy service in docker-compose.override.yml
+#   3. Update BASE_DOMAIN and TLS_MODE in .env
 #
-# gitlab.dev.local {
-#   tls internal
-#   reverse_proxy localhost:8080
-# }
-#
-# bit.dev.local {
-#   tls internal
-#   reverse_proxy localhost:3000
-# }
-#
-# npm.dev.local {
-#   tls internal
-#   reverse_proxy localhost:4873
-# }
+# TLS Modes:
+#   - internal: Caddy auto-generates self-signed certs (dev/LAN)
+#   - acme:     Let's Encrypt via DNS-01 challenge
+#   - custom:   Your own cert/key files
+
+# ─── GitLab ──────────────────────────────────────────────────────────────────
+gitlab.{$BASE_DOMAIN:localhost} {
+  tls {$TLS_MODE:internal}
+  reverse_proxy gitlab:80
+}
+
+# ─── Bit Scope Server ────────────────────────────────────────────────────────
+bit.{$BASE_DOMAIN:localhost} {
+  tls {$TLS_MODE:internal}
+  reverse_proxy bit:3000
+}
+
+# ─── Verdaccio (npm registry) ────────────────────────────────────────────────
+npm.{$BASE_DOMAIN:localhost} {
+  tls {$TLS_MODE:internal}
+  reverse_proxy verdaccio:4873
+}
+
+# ─── Harness-FE Gateway ─────────────────────────────────────────────────────
+harness.{$BASE_DOMAIN:localhost} {
+  tls {$TLS_MODE:internal}
+
+  # HTTP MCP endpoint
+  reverse_proxy /mcp/* harness:9050
+
+  # WebSocket for browser/server runtimes
+  @websocket {
+    header Connection *Upgrade*
+    header Upgrade websocket
+  }
+  reverse_proxy @websocket harness:9051
+  reverse_proxy harness:9050
+}

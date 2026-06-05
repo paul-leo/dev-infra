@@ -2,7 +2,7 @@ storage: /verdaccio/storage
 auth:
   htpasswd:
     file: /verdaccio/storage/htpasswd
-    max_users: -1   # 禁止自助注册，账号由管理员通过 htpasswd 工具创建
+    max_users: 1   # Only 1 admin user allowed, no self-registration after that
 
 uplinks:
   npmjs:
@@ -10,13 +10,20 @@ uplinks:
     timeout: 30s
 
 packages:
-  # @dev-infra/* 私有包：仅认证用户可访问和发布
+  # @dev-infra/* private packages: authenticated access only
   "@dev-infra/*":
     access: $authenticated
     publish: $authenticated
     storage: "@dev-infra"
 
-  # 其他公共包：匿名可读，认证后可发布，走 npmjs 代理
+  # @harness-fe/* packages: cache from npmjs, authenticated publish
+  "@harness-fe/*":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+    storage: "@harness-fe"
+
+  # Public packages: anonymous read, authenticated publish, proxy to npmjs
   "**":
     access: $all
     publish: $authenticated
@@ -26,4 +33,4 @@ log: { type: stdout, format: pretty, level: warn }
 web:
   enable: true
   title: dev-infra npm registry
-listen: "0.0.0.0:4873"
+listen: "0.0.0.0:${PORT:-4873}"
