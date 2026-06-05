@@ -1,23 +1,27 @@
 name: ${COMPOSE_PROJECT_NAME:-dev-infra}
 
 # ─── Profiles ────────────────────────────────────────────────────────────────
-# Services are grouped by profiles for selective startup:
 #
-#   docker compose up -d                          → core only (verdaccio + harness)
-#   docker compose --profile gitlab up -d         → + GitLab + Runner
-#   docker compose --profile bit up -d            → + Bit scope server
-#   docker compose --profile all up -d            → everything
+# Usage:
+#   docker compose up -d                        → core (verdaccio + harness)
+#   docker compose --profile gitlab up -d       → + GitLab + Runner
+#   docker compose --profile bit up -d          → + Bit scope server
+#   docker compose --profile caddy up -d        → + Caddy reverse proxy (HTTPS)
+#   docker compose --profile all up -d          → everything
 #
-# Or set COMPOSE_PROFILES in .env:
-#   COMPOSE_PROFILES=gitlab,bit
+# Or set in .env:
+#   COMPOSE_PROFILES=gitlab,caddy
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # ─── Core Services (always start) ───────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Core Services (always start)
+  # ═══════════════════════════════════════════════════════════════════════════
 
   verdaccio:
-    image: verdaccio/verdaccio:5
+    image: verdaccio/verdaccio:${VERDACCIO_VERSION:-5}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-verdaccio
     restart: unless-stopped
     env_file: .env
     ports:
@@ -25,17 +29,23 @@ services:
     environment:
       VERDACCIO_PORT: "4873"
     volumes:
-      - ./data/verdaccio/storage:/verdaccio/storage
+      - ${VERDACCIO_DATA_PATH:-./data/verdaccio}/storage:/verdaccio/storage
       - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4873/-/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   harness:
     image: ${HARNESS_IMAGE:-node:20-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-harness
     restart: unless-stopped
     env_file: .env
     working_dir: /app
     command: ["npx", "-y", "@harness-fe/cli", "serve", "--host", "0.0.0.0", "--port", "9050", "--ws-port", "9051"]
     environment:
-      NODE_ENV: development
+      NODE_ENV: "${NODE_ENV:-development}"
       HARNESS_MODE: "${HARNESS_MODE:-solo}"
       HARNESS_PROJECT_ID: "${HARNESS_PROJECT_ID:-dev-infra}"
       HARNESS_AUTH_TOKEN: "${HARNESS_AUTH_TOKEN:-}"
@@ -43,14 +53,17 @@ services:
       - "${HOST_IP:-127.0.0.1}:${HARNESS_PORT:-9050}:9050"
       - "${HOST_IP:-127.0.0.1}:${HARNESS_WS_PORT:-9051}:9051"
     volumes:
-      - ./data/harness:/app/data
+      - ${HARNESS_DATA_PATH:-./data/harness}:/app/data
 
-  # ─── GitLab (profile: gitlab, all) ─────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GitLab (profile: gitlab | all)
+  # ═══════════════════════════════════════════════════════════════════════════
 
   gitlab:
     image: ${GITLAB_IMAGE:-gitlab/gitlab-ce:17.11.1-ce.0}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-gitlab
     restart: unless-stopped
-    hostname: "${GITLAB_HOSTNAME:-localhost}"
+    hostname: "${GITLAB_HOSTNAME:-gitlab.${BASE_DOMAIN:-localhost}}"
     env_file: .env
     shm_size: "256m"
     profiles: ["gitlab", "all"]
@@ -72,25 +85,36 @@ services:
         gitlab_rails['packages_enabled'] = true
         registry['enable'] = false
     volumes:
-      - ./data/gitlab/config:/etc/gitlab
-      - ./data/gitlab/logs:/var/log/gitlab
-      - ./data/gitlab/data:/var/opt/gitlab
+      - ${GITLAB_DATA_PATH:-./data/gitlab}/config:/etc/gitlab
+      - ${GITLAB_DATA_PATH:-./data/gitlab}/logs:/var/log/gitlab
+      - ${GITLAB_DATA_PATH:-./data/gitlab}/data:/var/opt/gitlab
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/-/readiness"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
 
   gitlab-runner:
     image: ${GITLAB_RUNNER_IMAGE:-gitlab/gitlab-runner:v17.11.1}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-runner
     restart: unless-stopped
     env_file: .env
     profiles: ["gitlab", "all"]
     volumes:
-      - ./data/gitlab-runner/config:/etc/gitlab-runner
+      - ${RUNNER_DATA_PATH:-./data/gitlab-runner}/config:/etc/gitlab-runner
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - gitlab
+      gitlab:
+        condition: service_started
 
-  # ─── Bit Scope Server (profile: bit, all) ──────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Bit Scope Server (profile: bit | all)
+  # ═══════════════════════════════════════════════════════════════════════════
 
   bit:
     image: ${BIT_IMAGE:-bitcli/bit-server:1.13.58-node-22.22.0}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-bit
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
@@ -103,5 +127,33 @@ services:
       - "${HOST_IP:-127.0.0.1}:${BIT_PORT:-9030}:3000"
     volumes:
       - ./scripts/start-bit-scope.sh:/scripts/start-bit-scope.sh:ro
-      - ./data/bit/scope:/root/${BIT_SCOPE_NAME:-dev-infra}
-      - ./data/bit/logs:/root/Library/Caches/Bit/logs
+      - ${BIT_DATA_PATH:-./data/bit}/scope:/root/${BIT_SCOPE_NAME:-dev-infra}
+      - ${BIT_DATA_PATH:-./data/bit}/logs:/root/Library/Caches/Bit/logs
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Caddy Reverse Proxy (profile: caddy | all)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-caddy
+    restart: unless-stopped
+    profiles: ["caddy", "all"]
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTP_PORT:-80}:80"
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443"
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443/udp"
+    environment:
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
+      GITLAB_DOMAIN: "${GITLAB_DOMAIN:-gitlab.${BASE_DOMAIN:-localhost}}"
+      BIT_DOMAIN: "${BIT_DOMAIN:-bit.${BASE_DOMAIN:-localhost}}"
+      NPM_DOMAIN: "${NPM_DOMAIN:-npm.${BASE_DOMAIN:-localhost}}"
+      HARNESS_DOMAIN: "${HARNESS_DOMAIN:-harness.${BASE_DOMAIN:-localhost}}"
+      TLS_MODE: "${TLS_MODE:-internal}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDY_DATA_PATH:-./data/caddy}/data:/data
+      - ${CADDY_DATA_PATH:-./data/caddy}/config:/config
+      - ${CUSTOM_CERT_PATH:-./certs/cert.pem}:/certs/cert.pem:ro
+      - ${CUSTOM_KEY_PATH:-./certs/key.pem}:/certs/key.pem:ro

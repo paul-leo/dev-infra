@@ -1,28 +1,102 @@
-# DNS Setup (Optional)
+# DNS Configuration
 
-By default, services are accessible via `localhost` and port numbers. If you want clean hostnames on your LAN, configure internal DNS.
+## When Do You Need DNS?
 
-## Example Hostnames
+- **Direct port access** (default): No DNS needed. Access via `http://<ip>:9080`.
+- **Caddy with domains**: Requires DNS or `/etc/hosts` to resolve `<service>.BASE_DOMAIN`.
 
-```text
-gitlab.dev.local  →  <your-host-ip>
-bit.dev.local     →  <your-host-ip>
-npm.dev.local     →  <your-host-ip>
+## Domain Scheme
+
+With `BASE_DOMAIN=dev.example.com`, services are routed as:
+
+```
+gitlab.dev.example.com   → GitLab
+npm.dev.example.com      → Verdaccio
+bit.dev.example.com      → Bit
+harness.dev.example.com  → Harness-FE
 ```
 
-## Options
+## Setup Options
 
-- **Router DNS override** — simplest for home/small office
-- **Pi-hole / AdGuard Home** — if you already run one
-- **dnsmasq / CoreDNS** — lightweight dedicated DNS
-- `/etc/hosts` — single-machine only
-
-## Single Machine Quick Test
-
-Add to `/etc/hosts`:
+### /etc/hosts (Single Machine / Quick Test)
 
 ```text
-127.0.0.1 gitlab.dev.local bit.dev.local npm.dev.local
+127.0.0.1  gitlab.dev.local npm.dev.local bit.dev.local harness.dev.local
 ```
 
-> Note: With port-based access (the default), DNS is not required. It's only useful if you add a reverse proxy that routes by hostname.
+Or for a LAN server at `192.168.1.100`:
+
+```text
+192.168.1.100  gitlab.dev.local npm.dev.local bit.dev.local harness.dev.local
+```
+
+### Wildcard DNS (Recommended for Teams)
+
+Point `*.dev.example.com` to your server IP using a DNS wildcard record:
+
+```
+*.dev.example.com  →  A  →  192.168.1.100
+```
+
+This way any `<service>.dev.example.com` resolves automatically.
+
+### Router DNS / Pi-hole / AdGuard Home
+
+Add local DNS overrides for your LAN:
+
+```
+gitlab.dev.local   →  192.168.1.100
+npm.dev.local      →  192.168.1.100
+bit.dev.local      →  192.168.1.100
+harness.dev.local  →  192.168.1.100
+```
+
+### dnsmasq (Linux Lightweight DNS)
+
+```bash
+# /etc/dnsmasq.conf
+address=/dev.local/192.168.1.100
+```
+
+All `*.dev.local` will resolve to your server.
+
+## Verifying DNS
+
+```bash
+# Check resolution
+nslookup gitlab.dev.local
+dig gitlab.dev.local
+
+# Test HTTP
+curl -I http://gitlab.dev.local
+curl -I https://gitlab.dev.local  # if Caddy is running
+```
+
+## Custom Per-Service Domains
+
+If you don't want the `<service>.BASE_DOMAIN` pattern, override individually in `.env`:
+
+```env
+GITLAB_DOMAIN=code.company.com
+NPM_DOMAIN=registry.company.com
+BIT_DOMAIN=components.company.com
+HARNESS_DOMAIN=agent.company.com
+```
+
+Each domain needs its own DNS record pointing to the server.
+
+## Caddy + Public Domain (Let's Encrypt)
+
+For automatic Let's Encrypt certificates on a public domain:
+
+1. Point DNS to your server (A record or wildcard)
+2. Ensure ports 80/443 are reachable from the internet
+3. Set in `.env`:
+
+```env
+BASE_DOMAIN=dev.yourcompany.com
+ACME_EMAIL=admin@yourcompany.com
+COMPOSE_PROFILES=caddy
+```
+
+Caddy handles certificate provisioning and renewal automatically.

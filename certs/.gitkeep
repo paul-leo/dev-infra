@@ -1,0 +1,6 @@
+# Place your custom TLS certificates here:
+#   cert.pem  — certificate (or fullchain)
+#   key.pem   — private key
+#
+# These are only needed if you set CUSTOM_CERT_PATH / CUSTOM_KEY_PATH in .env.
+# Caddy handles TLS automatically for most cases (self-signed or Let's Encrypt).

@@ -1,186 +1,175 @@
 # dev-infra
 
-A Docker Compose stack for self-hosted development infrastructure on your local network. One command gives you:
+One-command self-hosted development infrastructure. Docker Compose gives you a private Git server, npm registry, component platform, and AI agent gateway — ready in minutes.
 
-- **GitLab CE** — private Git hosting + built-in package registry
-- **GitLab Runner** — CI/CD pipeline executor (Docker-in-Docker)
-- **Bit Scope Server** — self-hosted [Bit](https://bit.dev) component server
-- **Verdaccio** — lightweight private npm registry
-- **Harness-FE** — AI agent MCP gateway ([harness-fe](https://github.com/Morphicai/harness-fe))
+## What's Included
 
-All services bind to `127.0.0.1` by default (localhost only). Change `HOST_IP` to expose on your LAN.
+| Service | Description | Default Port |
+|---------|-------------|:------------:|
+| **Verdaccio** | Private npm registry with web UI | 9040 |
+| **Harness-FE** | AI agent MCP gateway ([harness-fe](https://github.com/Morphicai/harness-fe)) | 9050 / 9051 |
+| **GitLab CE** | Git hosting + CI/CD + package registry | 9080 |
+| **GitLab Runner** | CI/CD pipeline executor | — |
+| **Bit Server** | Component sharing platform | 9030 |
+| **Caddy** | Reverse proxy with auto HTTPS | 80 / 443 |
+
+All ports start from `90xx` to avoid conflicts with common dev ports.
 
 ## Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/paul-leo/dev-infra.git
-cd dev-infra
-
-# 2. Configure
+git clone https://github.com/user/dev-infra.git && cd dev-infra
 cp .env.example .env
-# Edit .env — at minimum change GITLAB_ROOT_PASSWORD
-
-# 3. Start all services
+# Edit .env — set GITLAB_ROOT_PASSWORD at minimum
 docker compose up -d
-
-# Or start only what you need:
-docker compose up -d                          # core only (verdaccio + harness)
-docker compose --profile gitlab up -d         # + GitLab + Runner
-docker compose --profile bit up -d            # + Bit scope server
-docker compose --profile all up -d            # everything
 ```
 
-Or set `COMPOSE_PROFILES` in `.env` to control which services start by default:
+That's it. Verdaccio and Harness-FE start immediately. GitLab takes 3–5 minutes on first boot.
 
-```env
-# Only core + gitlab (no bit)
-COMPOSE_PROFILES=gitlab
+## Selective Services (Profiles)
+
+Only start what you need:
+
+```bash
+# Core only (verdaccio + harness) — lightweight, fast
+docker compose up -d
+
+# Add GitLab
+docker compose --profile gitlab up -d
+
+# Add Caddy for HTTPS + domain routing
+docker compose --profile caddy up -d
 
 # Everything
+docker compose --profile all up -d
+```
+
+Or set once in `.env`:
+
+```env
+COMPOSE_PROFILES=gitlab,caddy
+```
+
+| Profile | Services |
+|---------|----------|
+| *(core)* | verdaccio, harness |
+| `gitlab` | gitlab, gitlab-runner |
+| `bit` | bit scope server |
+| `caddy` | caddy reverse proxy |
+| `all` | everything above |
+
+## Domain Configuration
+
+### Option A: Direct Port Access (default)
+
+No DNS needed. Access services by IP + port:
+
+```
+http://localhost:9080   → GitLab
+http://localhost:9040   → Verdaccio
+http://localhost:9050   → Harness-FE
+```
+
+### Option B: Custom Domains + HTTPS
+
+Enable Caddy and set your domain:
+
+```env
+COMPOSE_PROFILES=gitlab,caddy
+BASE_DOMAIN=dev.example.com
+ACME_EMAIL=admin@example.com   # for Let's Encrypt
+```
+
+Services become available at:
+
+```
+https://gitlab.dev.example.com
+https://npm.dev.example.com
+https://bit.dev.example.com
+https://harness.dev.example.com
+```
+
+Caddy auto-provisions TLS certificates:
+- **Public domains** → Let's Encrypt (requires DNS pointing to your server)
+- **`.local` / `.internal`** → self-signed internal CA
+- **`localhost`** → plain HTTP (no TLS)
+
+### Option C: LAN with Local Domains
+
+```env
+HOST_IP=0.0.0.0
+BASE_DOMAIN=dev.local
 COMPOSE_PROFILES=all
 ```
 
-GitLab takes 3–5 minutes to initialize on first boot.
+Add to `/etc/hosts` on each client machine:
 
-## Services
+```
+192.168.1.100  gitlab.dev.local npm.dev.local bit.dev.local harness.dev.local
+```
 
-| Service | Port | URL | Profile |
-|---------|------|-----|---------|
-| Verdaccio | 9040 | http://localhost:9040 | *(core, always on)* |
-| Harness-FE | 9050 | http://localhost:9050 | *(core, always on)* |
-| Harness WS | 9051 | ws://localhost:9051 | *(core, always on)* |
-| GitLab | 9080 | http://localhost:9080 | `gitlab` |
-| GitLab SSH | 9022 | ssh://localhost:9022 | `gitlab` |
-| GitLab Runner | — | — | `gitlab` |
-| Bit Server | 9030 | http://localhost:9030 | `bit` |
+### Custom Per-Service Domains
 
-**Core 服务**（verdaccio + harness）始终启动，其他通过 profile 按需开启。
+Override individual service domains:
 
-## Configuration
+```env
+GITLAB_DOMAIN=code.mycompany.com
+NPM_DOMAIN=registry.mycompany.com
+HARNESS_DOMAIN=agent.mycompany.com
+```
 
-All settings live in `.env`. Key variables:
+## Configuration Reference
+
+All settings live in `.env`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENV_MODE` | `development` | Environment mode: development / staging / production |
-| `HOST_IP` | `127.0.0.1` | Bind address. Use `0.0.0.0` or a LAN IP for team access |
-| `BASE_DOMAIN` | `localhost` | Base domain for all services |
-| `GITLAB_PORT` | `9080` | GitLab web port |
-| `GITLAB_SSH_PORT` | `9022` | GitLab SSH port |
-| `GITLAB_EXTERNAL_URL` | `http://localhost:9080` | Must match HOST_IP:GITLAB_PORT |
-| `GITLAB_ROOT_PASSWORD` | *(required)* | Initial root password |
-| `BIT_PORT` | `9030` | Bit scope server port |
-| `BIT_SCOPE_NAME` | `dev-infra` | Bit scope name |
-| `VERDACCIO_PORT` | `9040` | Verdaccio npm registry port |
-| `HARNESS_PORT` | `9050` | Harness-FE gateway HTTP port |
-| `HARNESS_WS_PORT` | `9051` | Harness-FE gateway WebSocket port |
-| `HARNESS_MODE` | `solo` | Gateway mode: `solo` (local) or `governed` (team RBAC) |
+| `COMPOSE_PROFILES` | `all` | Which optional services to start |
+| `HOST_IP` | `127.0.0.1` | Bind address for direct port access |
+| `BASE_DOMAIN` | `localhost` | Base domain (Caddy routes `<service>.BASE_DOMAIN`) |
+| `GITLAB_PORT` | `9080` | GitLab web |
+| `GITLAB_SSH_PORT` | `9022` | GitLab SSH |
+| `GITLAB_ROOT_PASSWORD` | — | Initial root password (required) |
+| `GITLAB_EXTERNAL_URL` | `http://localhost:9080` | How users reach GitLab |
+| `BIT_PORT` | `9030` | Bit scope server |
+| `VERDACCIO_PORT` | `9040` | npm registry |
+| `HARNESS_PORT` | `9050` | Harness-FE HTTP/MCP |
+| `HARNESS_WS_PORT` | `9051` | Harness-FE WebSocket |
+| `HARNESS_MODE` | `solo` | `solo` or `governed` (team RBAC) |
+| `CADDY_HTTP_PORT` | `80` | Caddy HTTP |
+| `CADDY_HTTPS_PORT` | `443` | Caddy HTTPS |
+| `ACME_EMAIL` | — | Email for Let's Encrypt |
 
-### LAN / Team Setup
-
-```env
-HOST_IP=192.168.1.100
-BASE_DOMAIN=192.168.1.100
-GITLAB_EXTERNAL_URL=http://192.168.1.100:9080
-```
-
-### Demo Environment
-
-For quick demo/staging deployments with HTTPS and LAN access:
-
-```bash
-cp .env.demo .env
-# Edit passwords, then:
-docker compose up -d
-# Optionally enable HTTPS:
-cp docker-compose.override.yml.example docker-compose.override.yml
-docker compose up -d
-```
-
-### HTTPS with Custom Domains
-
-```bash
-# 1. Enable HTTPS
-cp docker-compose.override.yml.example docker-compose.override.yml
-
-# 2. Configure in .env
-ENABLE_HTTPS=true
-BASE_DOMAIN=dev.yourcompany.com
-TLS_MODE=internal   # or: acme, custom
-
-# 3. For custom certs, place files in ./certs/
-#    CUSTOM_CERT_PATH=./certs/cert.pem
-#    CUSTOM_KEY_PATH=./certs/key.pem
-
-# 4. Start
-docker compose up -d
-```
+See [`.env.example`](.env.example) for the full list with documentation.
 
 ## Usage
+
+### npm Registry (Verdaccio)
+
+```bash
+# Register admin user (first user only — self-registration limited to 1)
+npm adduser --registry http://localhost:9040
+
+# Publish a package
+npm publish --registry http://localhost:9040
+
+# Project .npmrc (recommended)
+@your-scope:registry=http://localhost:9040
+```
 
 ### GitLab
 
 ```bash
-# Clone via HTTP
-git clone http://localhost:9080/your-group/your-project.git
+# Clone
+git clone http://localhost:9080/group/project.git
 
-# Clone via SSH
-git clone ssh://git@localhost:9022/your-group/your-project.git
-```
-
-### GitLab Runner
-
-The runner container starts automatically but needs one-time registration:
-
-1. GitLab → Admin → CI/CD → Runners → **New instance runner**
-2. Copy the token
-3. Run:
-
-```bash
+# Register CI runner (one-time)
 ./scripts/register-runner.sh <TOKEN>
-```
-
-### Bit Components
-
-```bash
-# Install Bit CLI
-npm i -g @teambit/bvm && bvm install
-
-# In your project workspace.jsonc
-# "defaultScope": "dev-infra"
-# "remotes": { "dev-infra": "http://localhost:9030" }
-
-# Workflow
-bit add src/components/button
-bit tag button --patch
-bit export
-```
-
-### Verdaccio (npm Registry)
-
-```bash
-# Point npm to local registry
-npm set registry http://localhost:9040
-
-# Publish
-npm publish --registry http://localhost:9040
-
-# .npmrc for scoped packages
-@dev-infra:registry=http://localhost:9040
-@harness-fe:registry=http://localhost:9040
 ```
 
 ### Harness-FE (AI Agent Gateway)
 
-The Harness-FE gateway connects AI agents (Claude, Cursor, Kiro) to your running applications via MCP.
-
-```bash
-# In your frontend project, install harness-fe:
-pnpm add -D @harness-fe/vite @harness-fe/runtime
-
-# Wire MCP in your agent's .mcp.json (point to the shared gateway):
-```
+Connect your IDE agent to the shared gateway:
 
 ```json
 {
@@ -194,47 +183,59 @@ pnpm add -D @harness-fe/vite @harness-fe/runtime
 }
 ```
 
-For governed (team) mode with RBAC tokens:
-
-```env
-HARNESS_MODE=governed
-HARNESS_AUTH_TOKEN=your-team-token
-```
-
-## Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `scripts/healthcheck.sh` | Check if services are responding |
-| `scripts/backup.sh` | Backup GitLab + Bit data |
-| `scripts/register-runner.sh` | Register GitLab Runner (run once) |
-| `scripts/start-bit-scope.sh` | Bit container entrypoint (internal) |
-
-## Data & Backups
-
-Runtime data is stored in `data/` (gitignored). Back up with:
+In your frontend project:
 
 ```bash
-./scripts/backup.sh
+pnpm add -D @harness-fe/vite @harness-fe/runtime
+npx @harness-fe/skill install
 ```
 
-Backups are saved to `backups/<timestamp>/`.
+### Bit Components
+
+```bash
+# workspace.jsonc → "remotes": { "dev-infra": "http://localhost:9030" }
+bit add src/components/button
+bit tag button --patch
+bit export
+```
 
 ## Operations
 
 ```bash
-# Stop all services
-docker compose down
+./scripts/healthcheck.sh        # Check all services
+./scripts/backup.sh             # Backup data
+docker compose logs -f <svc>    # Stream logs
+docker compose restart <svc>    # Restart one service
+docker compose down             # Stop everything
+```
 
-# View logs
-docker compose logs -f gitlab
-docker compose logs -f bit
-docker compose logs -f harness
+## Documentation
 
-# Upgrade images
-# 1. Edit image tags in .env
-# 2. docker compose pull
-# 3. docker compose up -d
+| Document | Description |
+|----------|-------------|
+| [docs/harness-fe.md](docs/harness-fe.md) | Harness-FE integration guide |
+| [docs/verdaccio.md](docs/verdaccio.md) | npm registry admin guide |
+| [docs/ssl.md](docs/ssl.md) | TLS / HTTPS setup options |
+| [docs/dns.md](docs/dns.md) | DNS configuration for custom domains |
+| [docs/operations.md](docs/operations.md) | Day-to-day operations |
+| [docs/agent-handbook.md](docs/agent-handbook.md) | AI agent deployment handbook |
+
+## Project Structure
+
+```
+├── .env.example              # Configuration template
+├── .env.demo                 # Demo/staging preset
+├── docker-compose.yml        # Service definitions
+├── caddy/Caddyfile           # Reverse proxy config
+├── verdaccio/config.yaml     # npm registry config
+├── certs/                    # Custom TLS certificates (optional)
+├── scripts/
+│   ├── healthcheck.sh
+│   ├── backup.sh
+│   ├── register-runner.sh
+│   └── start-bit-scope.sh
+├── data/                     # Runtime data (gitignored)
+└── docs/
 ```
 
 ## License

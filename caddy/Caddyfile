@@ -1,45 +1,48 @@
-# Caddy reverse proxy configuration for dev-infra services.
+# ─── Dev-Infra Caddy Reverse Proxy ───────────────────────────────────────────
 #
-# Usage:
-#   1. Set ENABLE_HTTPS=true in .env
-#   2. Uncomment the caddy service in docker-compose.override.yml
-#   3. Update BASE_DOMAIN and TLS_MODE in .env
+# Domains are configured via environment variables:
+#   GITLAB_DOMAIN, BIT_DOMAIN, NPM_DOMAIN, HARNESS_DOMAIN
 #
-# TLS Modes:
-#   - internal: Caddy auto-generates self-signed certs (dev/LAN)
-#   - acme:     Let's Encrypt via DNS-01 challenge
-#   - custom:   Your own cert/key files
+# TLS is handled automatically by Caddy:
+#   - Real domains → auto ACME (Let's Encrypt)
+#   - .local / .internal / IP → auto self-signed ("internal")
+#   - Set ACME_EMAIL for production Let's Encrypt
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Global options
+{
+	# Email for ACME (Let's Encrypt) registration
+	email {$ACME_EMAIL:}
+
+	# Use internal CA for *.local / *.internal / IP addresses
+	# Caddy auto-detects this for non-public domains
+}
 
 # ─── GitLab ──────────────────────────────────────────────────────────────────
-gitlab.{$BASE_DOMAIN:localhost} {
-  tls {$TLS_MODE:internal}
-  reverse_proxy gitlab:80
+{$GITLAB_DOMAIN:gitlab.localhost} {
+	reverse_proxy gitlab:80
 }
 
 # ─── Bit Scope Server ────────────────────────────────────────────────────────
-bit.{$BASE_DOMAIN:localhost} {
-  tls {$TLS_MODE:internal}
-  reverse_proxy bit:3000
+{$BIT_DOMAIN:bit.localhost} {
+	reverse_proxy bit:3000
 }
 
 # ─── Verdaccio (npm registry) ────────────────────────────────────────────────
-npm.{$BASE_DOMAIN:localhost} {
-  tls {$TLS_MODE:internal}
-  reverse_proxy verdaccio:4873
+{$NPM_DOMAIN:npm.localhost} {
+	reverse_proxy verdaccio:4873
 }
 
 # ─── Harness-FE Gateway ─────────────────────────────────────────────────────
-harness.{$BASE_DOMAIN:localhost} {
-  tls {$TLS_MODE:internal}
+{$HARNESS_DOMAIN:harness.localhost} {
+	# WebSocket upgrade for runtime connections
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade    websocket
+	}
+	reverse_proxy @websocket harness:9051
 
-  # HTTP MCP endpoint
-  reverse_proxy /mcp/* harness:9050
-
-  # WebSocket for browser/server runtimes
-  @websocket {
-    header Connection *Upgrade*
-    header Upgrade websocket
-  }
-  reverse_proxy @websocket harness:9051
-  reverse_proxy harness:9050
+	# All other traffic → HTTP MCP endpoint
+	reverse_proxy harness:9050
 }
