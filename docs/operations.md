@@ -1,18 +1,20 @@
 # Operations
 
-## Start
+## Start / Stop
 
 ```bash
-cp .env.example .env
-docker compose up -d
+docker compose up -d      # Start all services
+docker compose down        # Stop all services
+docker compose restart     # Restart all services
 ```
 
 ## Logs
 
 ```bash
-docker compose logs -f caddy
-docker compose logs -f gitlab
-docker compose logs -f bit
+docker compose logs -f             # All services
+docker compose logs -f gitlab      # GitLab only
+docker compose logs -f bit         # Bit only
+docker compose logs -f verdaccio   # Verdaccio only
 ```
 
 ## Health Check
@@ -21,31 +23,41 @@ docker compose logs -f bit
 ./scripts/healthcheck.sh
 ```
 
-## Bit Service
-
-The self-hosted Bit scope server is available on `https://bit.internal.local`.
-
-The Bit Cloud registry proxy is available on `https://npm.internal.local`.
-
-Before broad internal use, verify:
-
-- scope creation flow
-- persistent data directories
-- backup and restore process
-- authentication model
-- package content hardening checklist
-
-## Stop
+## Backup
 
 ```bash
-docker compose down
+./scripts/backup.sh
 ```
+
+Creates a timestamped backup in `backups/` containing:
+- GitLab application backup
+- GitLab config
+- Bit scope data
+
+## Restore
+
+1. Stop services: `docker compose down`
+2. Extract backup archive into `data/`
+3. For GitLab: copy the backup tar into `data/gitlab/data/backups/`, then:
+
+```bash
+docker compose up -d gitlab
+docker compose exec gitlab gitlab-backup restore BACKUP=<timestamp>
+docker compose restart
+```
+
+Always test restores on a disposable machine before relying on them.
 
 ## Upgrade
 
-1. Read upstream release notes.
-2. Backup.
-3. Change image tag in `docker-compose.yml`.
-4. Run `docker compose pull`.
-5. Run `docker compose up -d`.
-6. Run health checks.
+1. Check upstream release notes for breaking changes
+2. Run `./scripts/backup.sh`
+3. Update image tags in `.env`
+4. Pull and restart:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+5. Run `./scripts/healthcheck.sh` to verify

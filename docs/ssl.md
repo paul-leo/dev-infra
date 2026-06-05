@@ -1,25 +1,42 @@
-# TLS
+# TLS / HTTPS (Optional)
 
-Use this for the current local setup and for any later external HTTPS entry point.
+The default setup runs over plain HTTP, which is fine for localhost or a trusted LAN. Add TLS if you need HTTPS.
 
-## Option A: Internal CA
+## Option A: Caddy Internal CA
 
-Let Caddy generate its own internal CA for local testing, or replace it with a trusted internal CA if your company already has one.
+Let Caddy generate self-signed certificates automatically:
 
-The certificate should cover:
-
-```text
-*.internal.local
-internal.local
+```caddyfile
+gitlab.dev.local {
+  tls internal
+  reverse_proxy localhost:8080
+}
 ```
 
-All client devices must trust the internal CA if you want browser-grade HTTPS without warnings.
-For this repository's current localhost-only setup, trusting the local machine is enough.
+Clients must trust Caddy's root CA to avoid browser warnings.
 
-## Option B: Let's Encrypt DNS-01
+## Option B: Let's Encrypt (DNS-01)
 
-DNS-01 can issue valid public certificates without exposing HTTP ports.
+If you own a real domain and want valid public certificates without opening inbound ports:
 
-Use this only if the DNS provider API token can be stored securely on the company computer and you are publishing a real external hostname.
+```caddyfile
+gitlab.example.com {
+  tls {
+    dns cloudflare {env.CF_API_TOKEN}
+  }
+  reverse_proxy localhost:8080
+}
+```
 
-Avoid HTTP-01 because it requires public inbound access.
+Requires a custom Caddy build with your DNS provider plugin.
+
+## Option C: Your Own Certificates
+
+Mount your existing certs:
+
+```caddyfile
+gitlab.dev.local {
+  tls /path/to/cert.pem /path/to/key.pem
+  reverse_proxy localhost:8080
+}
+```

@@ -1,221 +1,154 @@
 # dev-infra
 
-本地内网开发基础设施，基于 Docker Compose 一键启动。提供：
+A Docker Compose stack for self-hosted development infrastructure on your local network. One command gives you:
 
-- **GitLab CE** — 私有 Git 仓库 + 包注册表
-- **GitLab Runner** — CI/CD 流水线执行器
-- **Bit Scope Server** — 自托管 Bit 组件服务器（scope: `dev-infra`）
+- **GitLab CE** — private Git hosting + built-in package registry
+- **GitLab Runner** — CI/CD pipeline executor (Docker-in-Docker)
+- **Bit Scope Server** — self-hosted [Bit](https://bit.dev) component server
+- **Verdaccio** — lightweight private npm registry
 
-全部走 HTTP，无需 TLS，仅限内网使用。
+All services bind to `127.0.0.1` by default (localhost only). Change `HOST_IP` to expose on your LAN.
 
----
-
-## 快速开始
-
-**前置条件：** Docker + Docker Compose v2
+## Quick Start
 
 ```bash
-# 1. 复制环境变量模板
+# 1. Clone
+git clone https://github.com/paul-leo/dev-infra.git
+cd dev-infra
+
+# 2. Configure
 cp .env.example .env
+# Edit .env — at minimum change GITLAB_ROOT_PASSWORD
 
-# 2. 修改 .env（至少改 GITLAB_ROOT_PASSWORD）
-
-# 3. 启动所有服务
+# 3. Start
 docker compose up -d
 ```
 
-GitLab 首次启动初始化需要约 3-5 分钟。
+GitLab takes 3–5 minutes to initialize on first boot.
 
----
+## Services
 
-## 服务地址
+| Service | Default URL | Notes |
+|---------|-------------|-------|
+| GitLab | http://localhost:8080 | Login: `root` / your password |
+| GitLab SSH | ssh://localhost:9022 | Add your SSH key in GitLab first |
+| Bit Server | http://localhost:3000 | Scope: `dev-infra` |
+| Verdaccio | http://localhost:4873 | npm registry with web UI |
 
-| 服务 | 默认地址 |
-|------|---------|
-| GitLab | http://localhost:8080 |
-| GitLab SSH | ssh://localhost:9022 |
-| Bit Server | http://localhost:3000 |
+## Configuration
 
-默认账号：`root` / `.env` 中的 `GITLAB_ROOT_PASSWORD`
+All settings live in `.env`. Key variables:
 
----
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST_IP` | `127.0.0.1` | Bind address. Use `0.0.0.0` or a LAN IP for team access |
+| `GITLAB_PORT` | `8080` | GitLab web port |
+| `GITLAB_SSH_PORT` | `9022` | GitLab SSH port |
+| `GITLAB_EXTERNAL_URL` | `http://localhost:8080` | Must match HOST_IP:GITLAB_PORT |
+| `GITLAB_ROOT_PASSWORD` | *(required)* | Initial root password |
+| `BIT_PORT` | `3000` | Bit scope server port |
+| `BIT_SCOPE_NAME` | `dev-infra` | Bit scope name |
+| `VERDACCIO_PORT` | `4873` | Verdaccio npm registry port |
 
-## 环境变量说明
-
-所有配置集中在 `.env`，全部支持覆盖默认值：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `COMPOSE_PROJECT_NAME` | `dev-infra` | Compose 项目名，影响容器/网络命名 |
-| `HOST_IP` | `127.0.0.1` | 服务绑定的 IP。`0.0.0.0` 或局域网 IP 可供团队共用 |
-| `GITLAB_PORT` | `8080` | GitLab Web 端口 |
-| `GITLAB_SSH_PORT` | `9022` | GitLab SSH 端口 |
-| `GITLAB_EXTERNAL_URL` | `http://localhost:8080` | clone 链接和 Web 跳转使用的 URL，必须与 `HOST_IP:GITLAB_PORT` 一致 |
-| `GITLAB_ROOT_PASSWORD` | *(必填)* | 初始 root 密码，首次登录后立即修改 |
-| `BIT_PORT` | `3000` | Bit Server 端口 |
-| `BIT_SCOPE_NAME` | `dev-infra` | Bit scope 名称 |
-
-### 多人共用（局域网机器）示例
+### LAN / Team Setup
 
 ```env
 HOST_IP=192.168.1.100
 GITLAB_EXTERNAL_URL=http://192.168.1.100:8080
-GITLAB_ROOT_PASSWORD=your-strong-password
 ```
 
----
+## Usage
 
-## GitLab 使用
-
-### 首次登录
-
-访问 http://localhost:8080，用 `root` + 密码登录，进入 Admin Area 完成基础配置：
-
-- 创建用户账号（Admin Area → Users → New user）
-- 关闭 root 账号日常使用
-
-### 克隆项目
+### GitLab
 
 ```bash
-# HTTP
-git clone http://localhost:8080/yourgroup/yourproject.git
+# Clone via HTTP
+git clone http://localhost:8080/your-group/your-project.git
 
-# SSH（需先在 GitLab 添加 SSH 公钥）
-git clone ssh://git@localhost:9022/yourgroup/yourproject.git
+# Clone via SSH
+git clone ssh://git@localhost:9022/your-group/your-project.git
 ```
 
-### Package Registry
+### GitLab Runner
 
-GitLab 内置包注册表，支持 npm、pip、Maven 等。以 npm 为例：
+The runner container starts automatically but needs one-time registration:
 
-```bash
-# 发布
-npm publish --registry http://localhost:8080/api/v4/projects/<project-id>/packages/npm/
-
-# .npmrc 配置
-@your-scope:registry=http://localhost:8080/api/v4/packages/npm/
-//localhost:8080/api/v4/packages/npm/:_authToken=<your-token>
-```
-
----
-
-## GitLab Runner（CI/CD）
-
-Runner 容器已随服务启动，但需要**注册一次**才能接收 pipeline 任务。
-
-### 注册步骤
-
-1. 登录 GitLab → Admin Area → CI/CD → Runners → **New instance runner**
-2. 复制 runner token
-3. 执行注册脚本：
+1. GitLab → Admin → CI/CD → Runners → **New instance runner**
+2. Copy the token
+3. Run:
 
 ```bash
 ./scripts/register-runner.sh <TOKEN>
 ```
 
-注册配置持久化在 `data/gitlab-runner/config/config.toml`，重启后无需再次注册。
-
-### Pipeline 示例
-
-项目根目录新建 `.gitlab-ci.yml`：
-
-```yaml
-stages:
-  - build
-  - test
-
-build:
-  stage: build
-  image: node:22
-  script:
-    - npm ci
-    - npm run build
-
-test:
-  stage: test
-  image: node:22
-  script:
-    - npm run test
-```
-
----
-
-## Bit Scope 使用
-
-Bit scope 名称：`dev-infra`，服务地址：`http://localhost:3000`
-
-### 客户端配置
+### Bit Components
 
 ```bash
-# 安装 Bit CLI（如未安装）
-npm install -g @teambit/bvm && bvm install
-```
+# Install Bit CLI
+npm i -g @teambit/bvm && bvm install
 
-在项目 `workspace.jsonc` 中配置 remote scope：
+# In your project workspace.jsonc
+# "defaultScope": "dev-infra"
+# "remotes": { "dev-infra": "http://localhost:3000" }
 
-```jsonc
-{
-  "defaultScope": "dev-infra",
-  "remotes": {
-    "dev-infra": "http://localhost:3000"
-  }
-}
-```
-
-### 日常工作流
-
-```bash
-# 追踪组件
-bit add src/components/Button
-
-# 打版本
-bit tag Button --patch
-
-# 推送到本地 scope server
+# Workflow
+bit add src/components/button
+bit tag button --patch
 bit export
-
-# 其他项目导入
-bit import dev-infra/button
-
-# 查看已发布组件
-open http://localhost:3000/dev-infra
 ```
 
-### CI 中使用 Bit
-
-在 `.gitlab-ci.yml` 中设置 Bit token：
-
-```yaml
-variables:
-  BIT_TOKEN: $BIT_TOKEN   # 在 GitLab CI/CD Variables 中配置
-
-before_script:
-  - bit config set user.token $BIT_TOKEN
-```
-
-获取 token：
+### Verdaccio (npm Registry)
 
 ```bash
-docker exec -it dev-infra-bit-1 bit login --machine-name ci
+# Point npm to local registry
+npm set registry http://localhost:4873
+
+# Publish
+npm publish --registry http://localhost:4873
+
+# .npmrc for scoped packages
+@dev-infra:registry=http://localhost:4873
 ```
 
----
+## Scripts
 
-## 数据目录
+| Script | Purpose |
+|--------|---------|
+| `scripts/healthcheck.sh` | Check if services are responding |
+| `scripts/backup.sh` | Backup GitLab + Bit data |
+| `scripts/register-runner.sh` | Register GitLab Runner (run once) |
+| `scripts/start-bit-scope.sh` | Bit container entrypoint (internal) |
 
-所有持久化数据存放在 `data/`（已加入 `.gitignore`）：
+## Data & Backups
 
+Runtime data is stored in `data/` (gitignored). Back up with:
+
+```bash
+./scripts/backup.sh
 ```
-data/
-├── gitlab/          # GitLab 配置、日志、数据
-├── gitlab-runner/   # Runner 配置
-└── bit/             # Bit scope 数据
+
+Backups are saved to `backups/<timestamp>/`.
+
+## HTTPS (Optional)
+
+For HTTPS, put a reverse proxy in front. See `caddy/Caddyfile` for a Caddy example, or use Nginx/Traefik.
+
+## Operations
+
+```bash
+# Stop all services
+docker compose down
+
+# View logs
+docker compose logs -f gitlab
+docker compose logs -f bit
+
+# Upgrade images
+# 1. Edit image tags in .env
+# 2. docker compose pull
+# 3. docker compose up -d
 ```
 
-备份只需打包 `data/` 目录。
+## License
 
----
-
-## HTTPS / 对外暴露
-
-如需暴露到公网，在前面加 TLS 反向代理（Nginx / Caddy）。`caddy/Caddyfile` 提供了配置参考。
+MIT
