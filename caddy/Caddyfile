@@ -1,81 +1,74 @@
 # ─── Dev-Infra Caddy Reverse Proxy ───────────────────────────────────────────
 #
-# User picks the TLS mode they need. Defaults are safe (plain HTTP on localhost).
+# TLS mode is selected by EDITING this file (the Caddy admin directive
+# `auto_https` does not accept "on" as a value — it's the default and the
+# directive only exists to disable or modify it).
 #
-# Modes (all driven by environment variables):
-#   1. Plain HTTP                       → AUTO_HTTPS=false,   TLS_SNIPPET=tls-none
-#   2. Public domain (Let's Encrypt)    → AUTO_HTTPS=true,    TLS_SNIPPET=tls-none
-#   3. .local / .internal self-signed   → AUTO_HTTPS=true,    TLS_SNIPPET=tls-internal
-#   4. Custom cert (./certs/)           → AUTO_HTTPS=true|false, TLS_SNIPPET=tls-custom
+# Four supported modes:
 #
-# Ports:
-#   CADDY_HTTP_PORT  → host port  AND  Caddy's http_port   (default 80)
-#   CADDY_HTTPS_PORT → host port  AND  Caddy's https_port  (default 443)
-#   docker-compose maps host:container 1:1 using the same env vars.
+#   Mode 1: Plain HTTP (default)
+#     Leave the `auto_https off` line uncommented. Caddy serves only HTTP.
 #
-# Domains (all optional, default to <service>.localhost):
+#   Mode 2: Public domain with Let's Encrypt
+#     COMMENT OUT the `auto_https off` line. Caddy will:
+#       - issue Let's Encrypt certs for public domains (if ACME_EMAIL is set
+#         in .env)
+#       - serve plain HTTP for localhost
+#
+#   Mode 3: .local / .internal with Caddy's self-signed CA
+#     Same as mode 2 (comment out `auto_health off`). Caddy auto-issues from
+#     its built-in CA for non-public domains.
+#
+#   Mode 4: Custom certificate
+#     Same as mode 2 (comment out `auto_health off`). Then UNCOMMENT the
+#     `tls /certs/...` line in each site block below (4 lines, marked with
+#     "mode 4"). Drop your cert chain + key into ./certs/.
+#
+# Ports (env-driven; same value used for host mapping, container port, and
+# Caddy's listen directive):
+#   CADDY_HTTP_PORT  → http_port  (default 80)
+#   CADDY_HTTPS_PORT → https_port (default 443)
+#
+# Domains (env-driven; default to <service>.localhost):
 #   GITLAB_DOMAIN, BIT_DOMAIN, NPM_DOMAIN, HARNESS_DOMAIN
-#   All derive from BASE_DOMAIN if you set that in .env.
-#
-# Custom cert files (mode 4):
-#   Place cert.pem + key.pem in ./certs/ (or override CUSTOM_CERT_PATH / CUSTOM_KEY_PATH)
-#   Run ./scripts/gen-certs.sh to generate a self-signed Root CA + leaf certs.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
 {
-	# Auto-HTTPS behaviour
-	auto_https {$AUTO_HTTPS:false}
+	# Plain HTTP by default. For modes 2/3/4, comment this line out.
+	auto_https off
 
-	# Ports — env-driven so they stay in sync with docker-compose port mappings
+	# Ports — env-driven so they stay in sync with docker-compose port mappings.
 	http_port  {$CADDY_HTTP_PORT:80}
 	https_port {$CADDY_HTTPS_PORT:443}
 
-	# ACME email (only used in mode 2)
-	email {$ACME_EMAIL:}
+	# ACME contact email (only used in mode 2 for public domains).
+	# Set via ACME_EMAIL in .env. Default `none` disables the ACME account
+	# (which is the right behaviour for modes 1, 3, 4).
+	email {$ACME_EMAIL:none}
 }
 
-# ─── TLS snippets (one is imported per site, chosen by TLS_SNIPPET) ─────────
-
-# No TLS — required for plain HTTP mode
-(tls-none) {
-	# intentionally empty; works with AUTO_HTTPS=false
-}
-
-# Caddy's built-in self-signed CA — good for .local / .internal domains
-(tls-internal) {
-	tls internal
-}
-
-# Custom cert files mounted at /certs/
-(tls-custom) {
-	tls /certs/cert.pem /certs/key.pem
-}
-
-# ─── Per-service vhosts ──────────────────────────────────────────────────────
-# {$TLS_SNIPPET:tls-none} resolves at config load to the snippet name above.
-
-# GitLab
+# ─── GitLab ──────────────────────────────────────────────────────────────────
 {$GITLAB_DOMAIN:gitlab.localhost} {
-	import {$TLS_SNIPPET:tls-none}
+	# tls /certs/cert.pem /certs/key.pem   # mode 4 (custom cert) — uncomment
 	reverse_proxy gitlab:80
 }
 
-# Bit Scope Server
+# ─── Bit Scope Server ────────────────────────────────────────────────────────
 {$BIT_DOMAIN:bit.localhost} {
-	import {$TLS_SNIPPET:tls-none}
+	# tls /certs/cert.pem /certs/key.pem   # mode 4 (custom cert) — uncomment
 	reverse_proxy bit:3000
 }
 
-# Verdaccio (npm private registry)
+# ─── Verdaccio (npm registry) ────────────────────────────────────────────────
 {$NPM_DOMAIN:npm.localhost} {
-	import {$TLS_SNIPPET:tls-none}
+	# tls /certs/cert.pem /certs/key.pem   # mode 4 (custom cert) — uncomment
 	reverse_proxy verdaccio:4873
 }
 
-# Harness-FE Gateway
+# ─── Harness-FE Gateway ─────────────────────────────────────────────────────
 {$HARNESS_DOMAIN:harness.localhost} {
-	import {$TLS_SNIPPET:tls-none}
+	# tls /certs/cert.pem /certs/key.pem   # mode 4 (custom cert) — uncomment
 
 	# WebSocket upgrade for browser/server runtime connections
 	@websocket {
