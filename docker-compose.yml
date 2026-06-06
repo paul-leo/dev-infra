@@ -139,21 +139,33 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-dev-infra}-caddy
     restart: unless-stopped
     profiles: ["caddy", "all"]
+    # Host port = container port = Caddy listen port. The same env var
+    # (CADDY_HTTP_PORT / CADDY_HTTPS_PORT) drives all three, so they cannot
+    # drift apart.
     ports:
-      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTP_PORT:-80}:80"
-      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443"
-      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443/udp"
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTP_PORT:-80}:${CADDY_HTTP_PORT:-80}"
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:${CADDY_HTTPS_PORT:-443}"
+      - "${HOST_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:${CADDY_HTTPS_PORT:-443}/udp"
     environment:
-      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
+      # TLS / HTTP mode
+      #   AUTO_HTTPS: on | off  (Caddy's global auto-HTTPS behaviour)
+      #   TLS_SNIPPET: tls-none | tls-internal | tls-custom
+      #                 (which TLS snippet the Caddyfile imports per site)
+      AUTO_HTTPS: "${AUTO_HTTPS:-false}"
+      TLS_SNIPPET: "${TLS_SNIPPET:-tls-none}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+      # Caddy listen ports (also referenced inside Caddyfile — single source of truth)
+      CADDY_HTTP_PORT: "${CADDY_HTTP_PORT:-80}"
+      CADDY_HTTPS_PORT: "${CADDY_HTTPS_PORT:-443}"
+      # Per-service domains
       GITLAB_DOMAIN: "${GITLAB_DOMAIN:-gitlab.${BASE_DOMAIN:-localhost}}"
       BIT_DOMAIN: "${BIT_DOMAIN:-bit.${BASE_DOMAIN:-localhost}}"
       NPM_DOMAIN: "${NPM_DOMAIN:-npm.${BASE_DOMAIN:-localhost}}"
       HARNESS_DOMAIN: "${HARNESS_DOMAIN:-harness.${BASE_DOMAIN:-localhost}}"
-      TLS_MODE: "${TLS_MODE:-internal}"
-      ACME_EMAIL: "${ACME_EMAIL:-}"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${CADDY_DATA_PATH:-./data/caddy}/data:/data
       - ${CADDY_DATA_PATH:-./data/caddy}/config:/config
+      # Only mounted when TLS_SNIPPET=tls-custom. Harmless otherwise.
       - ${CUSTOM_CERT_PATH:-./certs/cert.pem}:/certs/cert.pem:ro
       - ${CUSTOM_KEY_PATH:-./certs/key.pem}:/certs/key.pem:ro
