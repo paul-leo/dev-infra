@@ -60,84 +60,98 @@ COMPOSE_PROFILES=gitlab,caddy
 
 ## Domain Configuration
 
-### Option A: Direct Port Access (default)
+There are two ways to expose services: **direct ports** (no Caddy) or
+**Caddy vhost routing** (single entry point, optional TLS).
 
-No DNS needed. Access services by IP + port:
+### Option A — Direct Port Access (default, no Caddy)
+
+No DNS needed. Each service listens on its own host port:
 
 ```
 http://localhost:9080   → GitLab
 http://localhost:9040   → Verdaccio
 http://localhost:9050   → Harness-FE
+http://localhost:9030   → Bit
 ```
 
-### Option B: Custom Domains + HTTPS
+### Option B — Caddy Reverse Proxy (single hostname, optional HTTPS)
 
-Enable Caddy and set your domain:
+Enable the `caddy` profile, set your base domain, and pick a TLS mode:
 
 ```env
 COMPOSE_PROFILES=gitlab,caddy
-BASE_DOMAIN=dev.example.com
-ACME_EMAIL=admin@example.com   # for Let's Encrypt
+BASE_DOMAIN=your-domain.com
 ```
 
-Services become available at:
+All four services become available under one hostname:
 
 ```
-https://gitlab.dev.example.com
-https://npm.dev.example.com
-https://bit.dev.example.com
-https://harness.dev.example.com
+http(s)://gitlab.your-domain.com
+http(s)://npm.your-domain.com
+http(s)://bit.your-domain.com
+http(s)://harness.your-domain.com
 ```
 
-Caddy auto-provisions TLS certificates:
-- **Public domains** → Let's Encrypt (requires DNS pointing to your server)
-- **`.local` / `.internal`** → self-signed internal CA
-- **`localhost`** → plain HTTP (no TLS)
+#### Pick a TLS mode
 
-### Option C: LAN with Local Domains
+The Caddy proxy supports four modes — pick the one that matches your
+deployment. Flip two env vars in `.env`:
 
+| Mode | When to use | `AUTO_HTTPS` | `TLS_SNIPPET` |
+|------|-------------|:------------:|:-------------:|
+| 1. Plain HTTP | Dev box, behind another TLS terminator, trusted LAN | `false` | `tls-none` |
+| 2. Let's Encrypt | Public deployment, real DNS, reachable 80/443 | `true` | `tls-none` |
+| 3. Self-signed CA | LAN / air-gapped with `.local` or `.internal` | `true` | `tls-internal` |
+| 4. Custom certificate | Corporate CA, purchased cert, or your own self-signed pair | `true` or `false` | `tls-custom` |
+
+**Mode 2 example — Let's Encrypt:**
 ```env
-HOST_IP=0.0.0.0
-BASE_DOMAIN=dev.local
-COMPOSE_PROFILES=all
+AUTO_HTTPS=true
+TLS_SNIPPET=tls-none
+ACME_EMAIL=admin@your-domain.com
 ```
 
-Generate internal Root CA + certificates:
-
+**Mode 3 example — internal CA for `dev.local`:**
+```env
+AUTO_HTTPS=true
+TLS_SNIPPET=tls-internal
+```
+Then trust Caddy's CA on each client:
 ```bash
-./scripts/gen-certs.sh
-# Generates: certs/ca.crt, certs/cert.pem, certs/key.pem, certs/fullchain.pem
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ./caddy-root.crt   # macOS
 ```
 
-Trust the CA on client machines:
-
+**Mode 4 example — your own cert:**
 ```bash
-# macOS
-sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain ./certs/ca.crt
-
-# Linux
-sudo cp ./certs/ca.crt /usr/local/share/ca-certificates/dev-infra.crt
-sudo update-ca-certificates
-
-# Windows (PowerShell as admin)
-Import-Certificate -FilePath .\certs\ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+./scripts/gen-certs.sh your-domain.com     # or copy your own files into ./certs/
+```
+```env
+AUTO_HTTPS=false
+TLS_SNIPPET=tls-custom
 ```
 
-Add to `/etc/hosts` on each client machine:
-
-```
-192.168.1.100  gitlab.dev.local npm.dev.local bit.dev.local harness.dev.local
-```
+See [docs/ssl.md](docs/ssl.md) for the full per-mode walkthrough, port
+reference, and troubleshooting.
 
 ### Custom Per-Service Domains
 
-Override individual service domains:
+Override individual service domains in `.env`:
 
 ```env
-GITLAB_DOMAIN=code.mycompany.com
-NPM_DOMAIN=registry.mycompany.com
-HARNESS_DOMAIN=agent.mycompany.com
+GITLAB_DOMAIN=code.your-domain.com
+NPM_DOMAIN=registry.your-domain.com
+HARNESS_DOMAIN=agent.your-domain.com
+# BIT_DOMAIN falls back to bit.your-domain.com
+```
+
+### Custom Caddy Ports
+
+The same env var drives the host mapping, container port, **and**
+Caddy's listen port. Change one number to move everything:
+
+```env
+CADDY_HTTP_PORT=8080     # host 8080 → container 8080 → Caddy listens on 8080
 ```
 
 ## Configuration Reference
@@ -158,11 +172,16 @@ All settings live in `.env`:
 | `HARNESS_PORT` | `9050` | Harness-FE HTTP/MCP |
 | `HARNESS_WS_PORT` | `9051` | Harness-FE WebSocket |
 | `HARNESS_MODE` | `solo` | `solo` or `governed` (team RBAC) |
-| `CADDY_HTTP_PORT` | `80` | Caddy HTTP |
-| `CADDY_HTTPS_PORT` | `443` | Caddy HTTPS |
-| `ACME_EMAIL` | — | Email for Let's Encrypt |
+| `CADDY_HTTP_PORT` | `80` | Caddy HTTP port (host + container + Caddy listen) |
+| `CADDY_HTTPS_PORT` | `443` | Caddy HTTPS port (host + container + Caddy listen) |
+| `AUTO_HTTPS` | `false` | Caddy auto-HTTPS behaviour (`on`/`off`) |
+| `TLS_SNIPPET` | `tls-none` | TLS mode: `tls-none` / `tls-internal` / `tls-custom` |
+| `ACME_EMAIL` | — | Email for Let's Encrypt (mode 2) |
+| `CUSTOM_CERT_PATH` | `./certs/cert.pem` | Custom cert path (mode 4) |
+| `CUSTOM_KEY_PATH` | `./certs/key.pem` | Custom key path (mode 4) |
 
-See [`.env.example`](.env.example) for the full list with documentation.
+See [`.env.example`](.env.example) for the full list with documentation,
+and [docs/ssl.md](docs/ssl.md) for the TLS mode walkthrough.
 
 ## Usage
 
@@ -238,10 +257,9 @@ docker compose down             # Stop everything
 |----------|-------------|
 | [docs/harness-fe.md](docs/harness-fe.md) | Harness-FE integration guide |
 | [docs/verdaccio.md](docs/verdaccio.md) | npm registry admin guide |
-| [docs/ssl.md](docs/ssl.md) | TLS / HTTPS setup options |
+| [docs/ssl.md](docs/ssl.md) | Caddy reverse proxy & TLS mode walkthrough |
 | [docs/dns.md](docs/dns.md) | DNS configuration for custom domains |
 | [docs/operations.md](docs/operations.md) | Day-to-day operations |
-| [docs/agent-handbook.md](docs/agent-handbook.md) | AI agent deployment handbook |
 
 ## Project Structure
 

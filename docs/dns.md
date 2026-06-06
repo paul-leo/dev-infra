@@ -97,6 +97,11 @@ For automatic Let's Encrypt certificates on a public domain:
 BASE_DOMAIN=dev.yourcompany.com
 ACME_EMAIL=admin@yourcompany.com
 COMPOSE_PROFILES=caddy
+AUTO_HTTPS=true
+TLS_SNIPPET=tls-none
 ```
 
 Caddy handles certificate provisioning and renewal automatically.
+
+For the other TLS modes (plain HTTP, internal self-signed CA, custom
+certificate) and a full env-var reference, see [docs/ssl.md](ssl.md).
