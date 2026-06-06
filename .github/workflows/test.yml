@@ -1,0 +1,94 @@
+# ─── GitHub Actions: test workflow ─────────────────────────────────────────
+# Runs on every push and PR. Static + lightweight tests always. Integration
+# (RUN_INTEGRATION=1) runs on push to main and on manual dispatch.
+#
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      integration:
+        description: "Run integration tests (pulls caddy image, validates modes)"
+        type: boolean
+        default: false
+      smoke:
+        description: "Run full smoke test (docker compose up + health)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Static + lightweight tests. Always runs.
+  # ─────────────────────────────────────────────────────────────────────────
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Install docker compose
+        run: |
+          sudo apt-get install -y docker-compose-plugin
+          docker compose version
+
+      - name: Run tests
+        run: bash tests/run-all.sh
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Integration: pull caddy image and validate each TLS mode.
+  # Runs on push to main, on manual dispatch, or on PRs labelled 'integration'.
+  # ─────────────────────────────────────────────────────────────────────────
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    needs: static
+    if: |
+      github.event_name == 'workflow_dispatch' && inputs.integration ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main' ||
+      contains(github.event.pull_request.labels.*.name, 'integration')
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Install docker compose
+        run: sudo apt-get install -y docker-compose-plugin
+
+      - name: Run integration tests
+        run: RUN_INTEGRATION=1 bash tests/run-all.sh
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Full smoke test. Opt-in only via workflow_dispatch.
+  # ─────────────────────────────────────────────────────────────────────────
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    needs: static
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core + openssl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats openssl
+
+      - name: Install docker compose
+        run: sudo apt-get install -y docker-compose-plugin
+
+      - name: Run smoke test
+        run: RUN_SMOKE=1 bash tests/run-all.sh
